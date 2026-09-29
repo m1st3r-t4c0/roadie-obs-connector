@@ -6,7 +6,7 @@
 #include <QString>
 #include <memory>
 
-class QCef;
+struct QCef;
 class QCefWidget;
 struct QCefCookieManager;
 

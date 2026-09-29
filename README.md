@@ -1,9 +1,8 @@
 # Roadie Signal native OBS dock
 
-Development source, version 0.1.0. **Not yet compiled, installed, released or
-verified in OBS.** The initial compatibility target is Windows x64 / OBS 32.2.1.
-The matching OBS/browser headers, Qt 6.11.1 and portable CMake are prepared locally.
-The C++ compiler installation is pending; no plugin DLL is included or claimed.
+Development test build, version 0.1.0. **Compiled locally; not installed, released,
+published or verified in OBS.** The compatibility target is Windows x64 /
+OBS 32.2.1. The web receiver remains an unpublished local change in Roadie.
 
 ## What it does
 
@@ -81,10 +80,17 @@ deploy anything. For manual host testing, close OBS, copy the staged DLL into yo
 OBS installation's `obs-plugins/64bit` directory, then reopen OBS. Remove that DLL
 with OBS closed to uninstall. The test build is unsigned.
 
-Current local preparation: SDK checksums and PowerShell syntax checks passed.
-The first Build Tools installation attempt returned cancellation code 1602 before
-setup logs appeared. The build preflight correctly stops with a missing compiler
-message. No compiled DLL or OBS host verification is claimed.
+Current local validation (2026-09-29): the user installed Microsoft C++ Build Tools
+successfully. Release compilation passed using MSVC 19.44 and Windows SDK
+10.0.26100.0. DLL dependency, x64 architecture and OBS module-export checks are
+part of the build script. Host behavior is unverified; the user will test in OBS.
+The earlier installer cancellation is resolved and no Codex restart was needed.
+
+The build also creates `build/roadie-signal-0.1.0-obs32.2.1-windows-x64.zip` with
+the plugin folder layout, this README and a source/hash build report. The package
+is for manual testing only. Without publication of Roadie's matching web provider,
+the hosted page will not consume native audio measurements. Dock loading and
+sign-in can still be checked; no microphone waveform or silence warning is shown.
 
 The default origin is `https://dashboard.roadie.gg`. A separate local build may
 set `ROADIE_SIGNAL_ORIGIN` to a loopback HTTP origin. Browser cookies live under
@@ -124,7 +130,7 @@ connector history.
 
 ## Acceptance checks still required
 
-1. Finish compiler installation and compile a Release DLL with the matching SDK.
+1. Compile a Release DLL with the matching SDK — passed locally; verify the staged build report before installing.
 2. Install into a test OBS setup. Confirm one dock, Docks-menu toggle, docking,
    resizing, close/reopen, restart and normal Signal navigation/raid preemption.
 3. Confirm sign-in and cookies survive restart; test expired login, OAuth redirects,

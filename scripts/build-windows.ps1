@@ -23,8 +23,17 @@ $vs = & $vswhere -latest -version '[17.0,18.0)' -products '*' -requires Microsof
 if (!$vs) { throw 'No installed MSVC x64 toolchain found.' }
 $devcmd = Join-Path $vs 'Common7/Tools/VsDevCmd.bat'
 # Capture the developer environment internally. Never print environment values.
-$devEnvironment = & $env:ComSpec /d /s /c "`"`"$devcmd`" -arch=x64 -host_arch=x64 >nul && set`""
-if ($LASTEXITCODE) { throw 'MSVC environment setup failed.' }
+$start = [Diagnostics.ProcessStartInfo]::new()
+$start.FileName = $env:ComSpec
+$start.Arguments = "/d /s /c `"`"$devcmd`" -arch=x64 -host_arch=x64 >nul && set`""
+$start.UseShellExecute = $false
+$start.CreateNoWindow = $true
+$start.RedirectStandardOutput = $true
+$process = [Diagnostics.Process]::Start($start)
+$devEnvironment = $process.StandardOutput.ReadToEnd() -split "`r?`n"
+$process.WaitForExit()
+if ($process.ExitCode) { throw 'MSVC environment setup failed.' }
+$process.Dispose()
 foreach ($line in $devEnvironment) {
     if ($line -match '^([^=]+)=(.*)$') {
         [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
@@ -59,10 +68,16 @@ $dependencies = & dumpbin.exe /nologo /dependents $dll
 if ($LASTEXITCODE) { throw 'DLL dependency inspection failed.' }
 $dependencies | Set-Content "$repo/stage/dependencies.txt"
 $exports = & dumpbin.exe /nologo /exports $dll
-if ($LASTEXITCODE -or ($exports -join "`n") -notmatch 'obs_module_load') { throw 'OBS module export missing.' }
+if ($LASTEXITCODE) { throw 'DLL export inspection failed.' }
+foreach ($symbol in @('obs_module_load', 'obs_module_unload', 'obs_module_ver', 'obs_module_set_pointer', 'obs_module_description')) {
+    if (($exports -join "`n") -notmatch "\b$symbol\b") { throw "OBS module export missing: $symbol" }
+}
+$headers = & dumpbin.exe /nologo /headers $dll
+if ($LASTEXITCODE -or ($headers -join "`n") -notmatch '8664 machine') { throw 'Expected an x64 plugin DLL.' }
 $report = [ordered]@{
     obsVersion = $lock.obsVersion
     qtVersion = $lock.qt.version
+    compiler = 'MSVC ' + (Get-Item (Get-Command cl.exe).Source).VersionInfo.FileVersion
     origin = $Origin
     dllSha256 = (Get-FileHash $dll).Hash.ToLowerInvariant()
     hostTested = $false
@@ -72,3 +87,7 @@ $report = [ordered]@{
 }
 $report | ConvertTo-Json | Set-Content "$repo/stage/build-report.json"
 Write-Host "Release DLL staged at $dll. No plugin installed into OBS."
+Copy-Item -LiteralPath "$repo/README.md" -Destination "$repo/stage/README.md" -Force
+$archive = Join-Path $repo 'build/roadie-signal-0.1.0-obs32.2.1-windows-x64.zip'
+Compress-Archive -Path "$repo/stage/obs-plugins", "$repo/stage/README.md", "$repo/stage/build-report.json" -DestinationPath $archive -Force
+Write-Host "Test package ready at $archive"
