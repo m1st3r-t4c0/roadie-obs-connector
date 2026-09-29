@@ -1,15 +1,19 @@
 # Roadie Signal native OBS dock
 
-Version **0.1.1** is a Windows x64 compatibility test build compiled against the
-minimum **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for OBS 32.0.4.
-The matching web receiver is still an unpublished local change in Roadie.
+Version **0.1.2** is a local Windows x64 test build compiled against the minimum
+**OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
+OBS 32.0.4. The matching web receiver is still an unpublished local change in Roadie.
 
-The replacement test download is
+This version fixes a startup failure confirmed in an OBS 32.0.4 log: the module
+loaded, but its browser cookie directory could not be created, leaving no dock.
+The QCef cookie API requires a relative storage name, not an absolute Windows path.
+See [the diagnosis and validation record](docs/cookie-directory-startup.md).
+Version 0.1.2 has not been published or installed, and still requires host testing.
+
+The previous test download is
 [v0.1.1-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.1-test.1).
-Sign into GitHub with access to this private repo. Use the ZIP for the OBS folder
-layout, README and source/hash build report, or download `roadie-signal.dll` alone.
-The old v0.1.0-test.1 DLL was tied to OBS 32.2.1 / Qt 6.11.1 and cannot load on
-32.0.4; it remains as historical evidence and should not be used for this test.
+That build contains this cookie-path bug. The older v0.1.0-test.1 DLL was tied to
+OBS 32.2.1 / Qt 6.11.1 and cannot load on 32.0.4. Both are historical test builds.
 
 ## What it does
 
@@ -91,7 +95,7 @@ Outputs:
 
 - `stage/obs30.0.0/obs-plugins/64bit/roadie-signal.dll`
 - `stage/obs30.0.0/build-report.json` and DLL inspection report
-- `build/roadie-signal-0.1.1-obs30.0.0-minimum-windows-x64.zip`
+- `build/roadie-signal-0.1.2-obs30.0.0-minimum-windows-x64.zip`
 
 Build scripts do not install into OBS, upload, sign, publish or deploy anything.
 For manual testing, close OBS, replace only `roadie-signal.dll` in your installation's
@@ -110,8 +114,9 @@ fixture was verified against its official release digest. Actual tests belong in
 OBS on the streaming machine after dependency validation.
 
 The trusted origin defaults to `https://dashboard.roadie.gg`. A separate local build
-can specify a loopback HTTP origin. Browser cookies live in the plugin's OBS config;
-no API keys are needed and sign-in uses the existing web session.
+can specify a loopback HTTP origin. Browser cookies live in OBS's browser-plugin config under the stable
+`roadie-signal/browser-cookies` namespace; microphone settings remain in the
+Roadie plugin's own config. No API keys are needed and sign-in uses the existing web session.
 
 ## Local bridge, version 1
 

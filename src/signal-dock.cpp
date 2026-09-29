@@ -19,22 +19,32 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
 {
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
-  char *cookies = obs_module_config_path("browser-cookies");
-  if (!cookies)
-    return;
-  if (os_mkdirs(cookies) < 0) {
-    bfree(cookies);
+  // Settings belong to this plugin. Browser cookies use obs-browser's own
+  // configuration root, so its API must receive a relative storage name.
+  char *settingsDirectory = obs_module_config_path("");
+  if (!settingsDirectory) {
+    blog(LOG_WARNING, "[roadie-signal] settings directory is unavailable");
     return;
   }
-  // Keep the manager alive until after the browser; store cookies only in the
-  // plugin's runtime config directory. No dashboard credentials in tracked config.
-  cookieManager_.reset(cef->create_cookie_manager(cookies, true));
-  bfree(cookies);
-  if (!cookieManager_)
+  const int directoryResult = os_mkdirs(settingsDirectory);
+  bfree(settingsDirectory);
+  if (directoryResult == MKDIR_ERROR) {
+    blog(LOG_WARNING, "[roadie-signal] settings directory could not be created");
     return;
+  }
+  // QCef prefixes this name with obs-browser's config path. Passing an absolute
+  // path creates an invalid nested drive path on Windows and returns nullptr.
+  // Keep this namespace stable so sign-in cookies survive plugin upgrades.
+  cookieManager_.reset(cef->create_cookie_manager("roadie-signal/browser-cookies", true));
+  if (!cookieManager_) {
+    blog(LOG_WARNING, "[roadie-signal] browser cookie manager could not be created");
+    return;
+  }
   browser_ = cef->create_widget(this, (origin() + "/dock").toStdString(), cookieManager_.get());
-  if (!browser_)
+  if (!browser_) {
+    blog(LOG_WARNING, "[roadie-signal] browser widget could not be created");
     return;
+  }
   layout->addWidget(browser_);
   // String-based Qt connection avoids linking to obs-browser's private metaobject
   // symbols. The SDK's actual QCefWidget type supplies the virtual browser methods.

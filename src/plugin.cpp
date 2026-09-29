@@ -39,12 +39,19 @@ void startDock()
     return;
   }
   dock = new SignalDock(browser.get());
-  if (!dock->initialized() || !obs_frontend_add_dock_by_id(dockId, "Roadie Signal", dock)) {
+  if (!dock->initialized()) {
+    delete dock.data();
+    browser.reset();
+    blog(LOG_WARNING, "[roadie-signal] dock initialization failed before registration");
+    return;
+  }
+  if (!obs_frontend_add_dock_by_id(dockId, "Roadie Signal", dock)) {
     delete dock.data();
     browser.reset();
     blog(LOG_WARNING, "[roadie-signal] dock registration failed");
     return;
   }
+  blog(LOG_INFO, "[roadie-signal] Roadie Signal dock registered");
   microphoneAction = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Roadie Signal microphone…"));
   if (microphoneAction) {
     QObject::connect(microphoneAction, &QAction::triggered, dock, [] {
@@ -87,7 +94,7 @@ bool obs_module_load()
     blog(LOG_WARNING, "[roadie-signal] compatible Qt 6.5.3 or newer required; runtime is %s", qVersion());
     return false;
   }
-  blog(LOG_INFO, "[roadie-signal] native dock 0.1.1; OBS %s; Qt %s; baseline OBS 30.0.0 / Qt 6.5.3",
+  blog(LOG_INFO, "[roadie-signal] native dock 0.1.2; OBS %s; Qt %s; baseline OBS 30.0.0 / Qt 6.5.3",
        obs_get_version_string(), qVersion());
   obs_frontend_add_event_callback(frontendEvent, nullptr);
   return true;
