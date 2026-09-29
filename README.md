@@ -1,8 +1,14 @@
 # Roadie Signal native OBS dock
 
-Development test build, version 0.1.0. **Compiled locally; not installed, released,
-published or verified in OBS.** The compatibility target is Windows x64 /
-OBS 32.2.1. The web receiver remains an unpublished local change in Roadie.
+Development test build, version 0.1.0. **Compiled and published as an unsigned test
+prerelease; not installed or verified in OBS.** The compatibility target is Windows
+x64 / OBS 32.2.1. The web receiver remains an unpublished local change in Roadie.
+
+Download the [v0.1.0-test.1 prerelease](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.0-test.1)
+on the testing machine while signed into GitHub with access to this private repo.
+The ZIP, standalone DLL and SHA256SUMS.txt were published on 2026-09-29. The exact
+compiled source is commit `4a23c8c5f500fa1e378b3bafebd7c4014803123f`; GitHub asset
+digests match the local package checksums. This is a test handoff, not a stable release.
 
 ## What it does
 
