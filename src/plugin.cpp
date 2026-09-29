@@ -6,7 +6,6 @@
 #include <QAction>
 #include <QPointer>
 #include <memory>
-#include <cstring>
 
 OBS_DECLARE_MODULE()
 MODULE_EXPORT const char *obs_module_description()
@@ -20,30 +19,17 @@ std::unique_ptr<QCef> browser;
 QPointer<SignalDock> dock;
 QPointer<QAction> microphoneAction;
 
-void findBrowser(void *param, obs_module_t *module)
-{
-  if (std::strcmp(obs_get_module_name(module), "obs-browser") == 0)
-    *static_cast<obs_module_t **>(param) = module;
-}
-
 void startDock()
 {
   if (dock)
     return;
-  obs_module_t *module = nullptr;
-  obs_enum_modules(findBrowser, &module);
-  if (!module) {
-    blog(LOG_WARNING, "[roadie-signal] obs-browser is not loaded; dock unavailable");
+  // The matching upstream helper looks up the module by its binary identity,
+  // rather than the human-readable name returned by obs_get_module_name.
+  if (obs_browser_qcef_version() != 3) {
+    blog(LOG_WARNING, "[roadie-signal] matching browser panel API version 3 required");
     return;
   }
-  using CreateBrowser = QCef *(*)();
-  auto create = reinterpret_cast<CreateBrowser>(
-      os_dlsym(obs_get_module_lib(module), "obs_browser_create_qcef"));
-  if (!create) {
-    blog(LOG_WARNING, "[roadie-signal] browser panel interface unavailable");
-    return;
-  }
-  browser.reset(create());
+  browser.reset(obs_browser_init_panel());
   if (browser)
     browser->init_browser(); // may already be initialized by OBS
   if (!browser || !browser->wait_for_browser_init()) {
@@ -90,6 +76,10 @@ void frontendEvent(enum obs_frontend_event event, void *)
 
 bool obs_module_load()
 {
+  if (obs_get_version() != LIBOBS_API_VER) {
+    blog(LOG_WARNING, "[roadie-signal] this test build requires OBS 32.2.1");
+    return false;
+  }
   obs_frontend_add_event_callback(frontendEvent, nullptr);
   return true;
 }

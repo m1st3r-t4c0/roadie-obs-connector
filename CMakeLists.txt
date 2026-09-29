@@ -4,9 +4,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-# Use a prepared, version-matched OBS SDK. No downloads or dependency upgrades.
-find_package(libobs 30 REQUIRED)
-find_package(obs-frontend-api REQUIRED)
+# Use official packages, or the explicitly prepared local host SDK.
+set(ROADIE_OBS_SOURCE_DIR "" CACHE PATH "Matching OBS source tree for local host SDK")
+if(ROADIE_OBS_SOURCE_DIR)
+  include(cmake/HostSdk.cmake)
+else()
+  find_package(libobs 32.2 REQUIRED)
+  find_package(obs-frontend-api REQUIRED)
+endif()
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 set(OBS_BROWSER_PANEL_INCLUDE_DIR "" CACHE PATH "Directory containing the matching browser-panel.hpp")
 if(NOT EXISTS "${OBS_BROWSER_PANEL_INCLUDE_DIR}/browser-panel.hpp")

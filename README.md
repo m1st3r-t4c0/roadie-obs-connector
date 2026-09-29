@@ -2,8 +2,8 @@
 
 Development source, version 0.1.0. **Not yet compiled, installed, released or
 verified in OBS.** The initial compatibility target is Windows x64 / OBS 32.2.1.
-The browser-panel SDK and compiler are build prerequisites; no plugin DLL is
-included or claimed.
+The matching OBS/browser headers, Qt 6.11.1 and portable CMake are prepared locally.
+The C++ compiler installation is pending; no plugin DLL is included or claimed.
 
 ## What it does
 
@@ -30,31 +30,61 @@ stale samples unavailable. **It does not yet render the deferred waveform or
 silence warning.** Ordinary browser docks and the Soundcheck preview retain their
 existing behavior. Silence alert thresholds remain an open product decision.
 
-## Build prerequisites
+## Repository boundary
 
-Use a prepared, version-matched OBS developer SDK containing:
+This repository owns the native wrapper, compiler/SDK preparation and packaging.
+The hosted `/dock` UI and `apps/web/src/dock/native` receiver stay in the Roadie
+application. The version 1 event below is the contract between the two repositories;
+coordinate changes to it across both before publishing.
 
-- `libobs` and `obs-frontend-api` CMake packages/import libraries;
-- OBS-compatible Qt 6 Widgets and a Windows x64 C++ toolchain;
-- the matching obs-browser `browser-panel.hpp` and its required local headers.
+## Windows build
 
-The SDK browser declarations are included directly; this project does not
-reconstruct a private CEF vtable or download build dependencies. Installed OBS
-binaries alone do not provide development headers. Verify browser panel ABI,
-factory ownership, cookie-manager lifetime and supported OBS versions against
-the matching upstream source before compiling/releasing. A header from another
-OBS/browser version is not interchangeable.
+The initial test target is **OBS 32.2.1, Windows x64, Qt 6.11.1**. This build rejects
+other OBS versions at module load and requires browser panel API version 3. Broader
+compatibility needs host verification and matching headers; do not update OBS just
+to build this plugin.
 
 ```powershell
-cmake -S . -B build -DCMAKE_PREFIX_PATH="<prepared-sdk>" -DOBS_BROWSER_PANEL_INCLUDE_DIR="<matching-panel-headers>"
-cmake --build build --config Release
-cmake --install build --config Release --prefix stage
+# Public downloads, locked hashes, ignored cache. No administrator access needed.
+./scripts/prepare-sdk.ps1
+
+# Microsoft C++ Build Tools + Windows SDK. Windows asks for administrator approval.
+# Skip if Visual Studio 2022 C++ tools are already installed.
+./scripts/install-build-tools.ps1
+
+# Compile Release, inspect exports/dependencies and stage the plugin. No OBS install.
+./scripts/build-windows.ps1
 ```
 
-The staging directory contains `obs-plugins/64bit/roadie-signal.dll`. No install
-into a running OBS, downloads, release signing, updater or production deployment
-is performed by these build commands. Close OBS before a separately authorized
-installation.
+The preparation script downloads official OBS 32.2.1 source, its exact obs-browser
+panel header, OBS's matching Qt bundle and portable CMake 3.30.5. The SDK lock file
+records SHA-256 checksums. Qt and CMake hashes were verified against official
+upstream metadata; OBS source/header hashes lock the initially retrieved bytes.
+The Microsoft installer helper checks its pinned bootstrapper hash and Authenticode
+signature. Component versions come from Microsoft's installer channel; this is
+not a hermetic compiler snapshot.
+
+The build script resolves the installed VS 2022 x64 compiler and uses the installed
+OBS DLL export tables to generate local import libraries. CMake uses the official
+OBS headers and a generated `obsconfig.h`; it does not rebuild OBS or substitute CEF
+vtable declarations. The Qt SDK version is checked against the installed OBS Qt DLL.
+OBS binaries and SDK assets are never committed or included in the plugin package.
+
+The browser factory and lifecycle were checked against the matching upstream
+implementation: the factory returns a new `QCef`, the cookie manager has a virtual
+destructor, and destroying the browser widget closes its browser. Native compilation
+and actual unload behavior remain separate verification steps.
+
+The output is `stage/obs-plugins/64bit/roadie-signal.dll`, a build report and DLL
+inspection report. Build scripts do not install into OBS, upload, sign, publish or
+deploy anything. For manual host testing, close OBS, copy the staged DLL into your
+OBS installation's `obs-plugins/64bit` directory, then reopen OBS. Remove that DLL
+with OBS closed to uninstall. The test build is unsigned.
+
+Current local preparation: SDK checksums and PowerShell syntax checks passed.
+The first Build Tools installation attempt returned cancellation code 1602 before
+setup logs appeared. The build preflight correctly stops with a missing compiler
+message. No compiled DLL or OBS host verification is claimed.
 
 The default origin is `https://dashboard.roadie.gg`. A separate local build may
 set `ROADIE_SIGNAL_ORIGIN` to a loopback HTTP origin. Browser cookies live under
@@ -94,7 +124,7 @@ connector history.
 
 ## Acceptance checks still required
 
-1. Verify the matching SDK/CEF ownership API and compile a Release DLL.
+1. Finish compiler installation and compile a Release DLL with the matching SDK.
 2. Install into a test OBS setup. Confirm one dock, Docks-menu toggle, docking,
    resizing, close/reopen, restart and normal Signal navigation/raid preemption.
 3. Confirm sign-in and cookies survive restart; test expired login, OAuth redirects,
