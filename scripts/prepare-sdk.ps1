@@ -4,8 +4,9 @@ param()
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $repo = Split-Path $PSScriptRoot -Parent
-$cache = Join-Path $repo 'build/sdk'
+$tools = Join-Path $repo 'build/sdk'
 $lock = Get-Content (Join-Path $PSScriptRoot 'sdk-lock.json') -Raw | ConvertFrom-Json
+$cache = Join-Path $tools $lock.obsVersion
 New-Item -ItemType Directory -Force $cache | Out-Null
 function Get-VerifiedFile($item, $name) {
     $path = Join-Path $cache $name
@@ -17,17 +18,26 @@ function Get-VerifiedFile($item, $name) {
     }
     return $path
 }
-$obs = Get-VerifiedFile $lock.obsSource 'obs-studio-32.2.1.zip'
+$obs = Get-VerifiedFile $lock.obsSource 'obs-source.zip'
 $qt = Get-VerifiedFile $lock.qt 'qt6.zip'
-$cmake = Get-VerifiedFile $lock.cmake 'cmake.zip'
-if (!(Test-Path "$cache/obs-studio-32.2.1/libobs/obs.h")) {
+$cmake = Join-Path $tools 'cmake.zip'
+if (!(Test-Path $cmake)) { Invoke-WebRequest $lock.cmake.url -OutFile $cmake }
+if ((Get-FileHash $cmake).Hash -ne $lock.cmake.sha256) { throw 'CMake checksum mismatch.' }
+$hostArchive = Get-VerifiedFile $lock.obsHost 'obs-host.zip'
+if (!(Test-Path "$cache/obs-host/bin/64bit/obs64.exe")) {
+    Expand-Archive -LiteralPath $hostArchive -DestinationPath "$cache/obs-host"
+}
+if ((Get-AuthenticodeSignature "$cache/obs-host/bin/64bit/obs64.exe").Status -ne 'Valid') {
+    throw 'Official baseline OBS executable signature is not valid.'
+}
+if (!(Test-Path "$cache/obs-studio-$($lock.obsVersion)/libobs/obs.h")) {
     Expand-Archive -LiteralPath $obs -DestinationPath $cache
 }
 if (!(Test-Path "$cache/qt6/lib/cmake/Qt6/Qt6Config.cmake")) {
     Expand-Archive -LiteralPath $qt -DestinationPath "$cache/qt6"
 }
-if (!(Test-Path "$cache/cmake-3.30.5-windows-x86_64/bin/cmake.exe")) {
-    Expand-Archive -LiteralPath $cmake -DestinationPath $cache
+if (!(Test-Path "$tools/cmake-3.30.5-windows-x86_64/bin/cmake.exe")) {
+    Expand-Archive -LiteralPath $cmake -DestinationPath $tools
 }
 New-Item -ItemType Directory -Force "$cache/browser-panel" | Out-Null
 $header = Join-Path $cache 'browser-panel/browser-panel.hpp'

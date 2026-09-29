@@ -1,20 +1,22 @@
 [CmdletBinding()]
 param(
-    [string]$ObsRoot = (Join-Path $env:ProgramFiles 'obs-studio'),
+    [string]$ObsRoot = '',
     [string]$Origin = 'https://dashboard.roadie.gg'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$cache = Join-Path $repo 'build/sdk'
+$tools = Join-Path $repo 'build/sdk'
 $lock = Get-Content (Join-Path $PSScriptRoot 'sdk-lock.json') -Raw | ConvertFrom-Json
-$cmake = Join-Path $cache 'cmake-3.30.5-windows-x86_64/bin/cmake.exe'
+$cache = Join-Path $tools $lock.obsVersion
+if (!$ObsRoot) { $ObsRoot = Join-Path $cache 'obs-host' }
+$cmake = Join-Path $tools 'cmake-3.30.5-windows-x86_64/bin/cmake.exe'
 $obsExe = Join-Path $ObsRoot 'bin/64bit/obs64.exe'
 if (!(Test-Path $obsExe) -or (Get-Item $obsExe).VersionInfo.ProductVersion -ne $lock.obsVersion) {
-    throw "This test build requires installed OBS $($lock.obsVersion)."
+    throw "This test build must link against baseline OBS $($lock.obsVersion)."
 }
 $qtDll = Join-Path $ObsRoot 'bin/64bit/Qt6Core.dll'
 if ((Get-Item $qtDll).VersionInfo.ProductVersion -ne "$($lock.qt.version).0") {
-    throw 'Installed OBS Qt version does not match the pinned SDK.'
+    throw 'Baseline OBS Qt version does not match the pinned SDK.'
 }
 if (!(Test-Path $cmake)) { throw 'Run scripts/prepare-sdk.ps1 first.' }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
@@ -56,17 +58,18 @@ foreach ($name in @('obs', 'obs-frontend-api')) {
     @("LIBRARY $name.dll", 'EXPORTS') + $symbols | Set-Content "$imports/$name.def" -Encoding ascii
     Invoke-Checked 'lib.exe' @('/nologo', '/machine:x64', "/def:$imports/$name.def", "/out:$imports/$name.lib")
 }
-$build = Join-Path $repo 'build/plugin'
+$build = Join-Path $repo "build/plugin-obs$($lock.obsVersion)"
 Invoke-Checked $cmake @('-S', $repo, '-B', $build, '-G', 'Visual Studio 17 2022', '-A', 'x64',
-    "-DCMAKE_PREFIX_PATH=$cache/qt6", "-DROADIE_OBS_SOURCE_DIR=$cache/obs-studio-32.2.1",
+    "-DCMAKE_PREFIX_PATH=$cache/qt6", "-DROADIE_OBS_SOURCE_DIR=$cache/obs-studio-$($lock.obsVersion)",
     "-DROADIE_OBS_HOST_DIR=$ObsRoot", "-DROADIE_OBS_IMPORT_DIR=$imports",
     "-DOBS_BROWSER_PANEL_INCLUDE_DIR=$cache/browser-panel", "-DROADIE_SIGNAL_ORIGIN=$Origin")
 Invoke-Checked $cmake @('--build', $build, '--config', 'Release', '--parallel')
-Invoke-Checked $cmake @('--install', $build, '--config', 'Release', '--prefix', "$repo/stage")
-$dll = Join-Path $repo 'stage/obs-plugins/64bit/roadie-signal.dll'
+Invoke-Checked $cmake @('--install', $build, '--config', 'Release', '--prefix', "$repo/stage/obs$($lock.obsVersion)")
+$stage = Join-Path $repo "stage/obs$($lock.obsVersion)"
+$dll = Join-Path $stage 'obs-plugins/64bit/roadie-signal.dll'
 $dependencies = & dumpbin.exe /nologo /dependents $dll
 if ($LASTEXITCODE) { throw 'DLL dependency inspection failed.' }
-$dependencies | Set-Content "$repo/stage/dependencies.txt"
+$dependencies | Set-Content "$stage/dependencies.txt"
 $exports = & dumpbin.exe /nologo /exports $dll
 if ($LASTEXITCODE) { throw 'DLL export inspection failed.' }
 foreach ($symbol in @('obs_module_load', 'obs_module_unload', 'obs_module_ver', 'obs_module_set_pointer', 'obs_module_description')) {
@@ -85,9 +88,9 @@ $report = [ordered]@{
     sourceDirty = [bool](& git -C $repo status --porcelain)
     obsDllSha256 = (Get-FileHash (Join-Path $ObsRoot 'bin/64bit/obs.dll')).Hash.ToLowerInvariant()
 }
-$report | ConvertTo-Json | Set-Content "$repo/stage/build-report.json"
+$report | ConvertTo-Json | Set-Content "$stage/build-report.json"
 Write-Host "Release DLL staged at $dll. No plugin installed into OBS."
-Copy-Item -LiteralPath "$repo/README.md" -Destination "$repo/stage/README.md" -Force
-$archive = Join-Path $repo 'build/roadie-signal-0.1.0-obs32.2.1-windows-x64.zip'
-Compress-Archive -Path "$repo/stage/obs-plugins", "$repo/stage/README.md", "$repo/stage/build-report.json" -DestinationPath $archive -Force
+Copy-Item -LiteralPath "$repo/README.md" -Destination "$stage/README.md" -Force
+$archive = Join-Path $repo "build/roadie-signal-0.1.1-obs$($lock.obsVersion)-minimum-windows-x64.zip"
+Compress-Archive -Path "$stage/obs-plugins", "$stage/README.md", "$stage/build-report.json" -DestinationPath $archive -Force
 Write-Host "Test package ready at $archive"

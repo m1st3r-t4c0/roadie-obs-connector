@@ -15,9 +15,13 @@ set_target_properties(OBS::libobs PROPERTIES
   IMPORTED_IMPLIB "${ROADIE_OBS_IMPORT_DIR}/obs.lib"
   IMPORTED_LOCATION "${ROADIE_OBS_HOST_DIR}/bin/64bit/obs.dll"
   INTERFACE_INCLUDE_DIRECTORIES "${ROADIE_OBS_SOURCE_DIR}/libobs;${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(frontend_headers "${ROADIE_OBS_SOURCE_DIR}/frontend/api")
+if(NOT EXISTS "${frontend_headers}/obs-frontend-api.h")
+  set(frontend_headers "${ROADIE_OBS_SOURCE_DIR}/UI/obs-frontend-api")
+endif()
 add_library(OBS::obs-frontend-api SHARED IMPORTED)
 set_target_properties(OBS::obs-frontend-api PROPERTIES
   IMPORTED_IMPLIB "${ROADIE_OBS_IMPORT_DIR}/obs-frontend-api.lib"
   IMPORTED_LOCATION "${ROADIE_OBS_HOST_DIR}/bin/64bit/obs-frontend-api.dll"
-  INTERFACE_INCLUDE_DIRECTORIES "${ROADIE_OBS_SOURCE_DIR}/frontend/api"
+  INTERFACE_INCLUDE_DIRECTORIES "${frontend_headers}"
   INTERFACE_LINK_LIBRARIES OBS::libobs)

@@ -1,107 +1,117 @@
 # Roadie Signal native OBS dock
 
-Development test build, version 0.1.0. **Compiled and published as an unsigned test
-prerelease; not installed or verified in OBS.** The compatibility target is Windows
-x64 / OBS 32.2.1. The web receiver remains an unpublished local change in Roadie.
+Version **0.1.1** is a Windows x64 compatibility test build compiled against the
+minimum **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for OBS 32.0.4.
+The matching web receiver is still an unpublished local change in Roadie.
 
-Download the [v0.1.0-test.1 prerelease](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.0-test.1)
-on the testing machine while signed into GitHub with access to this private repo.
-The ZIP, standalone DLL and SHA256SUMS.txt were published on 2026-09-29. The exact
-compiled source is commit `4a23c8c5f500fa1e378b3bafebd7c4014803123f`; GitHub asset
-digests match the local package checksums. This is a test handoff, not a stable release.
+The replacement test download is
+[v0.1.1-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.1-test.1).
+Sign into GitHub with access to this private repo. Use the ZIP for the OBS folder
+layout, README and source/hash build report, or download `roadie-signal.dll` alone.
+The old v0.1.0-test.1 DLL was tied to OBS 32.2.1 / Qt 6.11.1 and cannot load on
+32.0.4; it remains as historical evidence and should not be used for this test.
 
 ## What it does
 
-The module registers **Roadie Signal** in OBS's **Docks** menu. Its browser opens
-the existing authenticated Roadie `/dock` application; Signal continues to ship
-as the web app. The dock is private OBS workspace UI, never a scene source.
+The module registers **Roadie Signal** in OBS's **Docks** menu and opens the
+existing authenticated `/dock` web application. It is private workspace UI.
+**Tools → Roadie Signal microphone…** selects one OBS audio source by UUID; None
+is the default. Source rename preserves selection, and removal produces unavailable
+measurements. Selection persists in OBS's plugin runtime configuration.
 
-**Tools → Roadie Signal microphone…** chooses one OBS audio source. None is the
-default and switches sharing off. Selection is persisted by source UUID in OBS's
-plugin config; renaming the source does not change the selection, and deleting it
-produces unavailable data. The dialog is initial implementation and has not been
-reviewed on-screen.
+A native OBS meter supplies local peak/RMS measurements to the dock every 100 ms.
+The callback updates a snapshot without UI, JavaScript, allocation or network work.
+No raw microphone audio is captured or uploaded. Only the signed-in `/dock` provider
+accepts measurements; navigation away detaches the tap.
 
-A native OBS volume meter supplies a peak/RMS envelope. A 100 ms GUI timer sends
-versioned local measurements to this dock's page using its browser widget's
-JavaScript execution interface. The audio callback only updates a small snapshot
-with a non-blocking lock. It never executes JavaScript, allocates UI objects or
-makes network calls. No raw microphone audio is captured or uploaded. Actual
-meter behavior relative to filters/faders and mute still needs host verification.
-
-The current web implementation mounts an audio provider on `/dock` only. It
-validates input, rejects duplicates, bounds envelope history to 32 peaks and marks
-stale samples unavailable. **It does not yet render the deferred waveform or
-silence warning.** Ordinary browser docks and the Soundcheck preview retain their
-existing behavior. Silence alert thresholds remain an open product decision.
+The web receiver validates frames and freshness but does not yet render the
+waveform or silence warning. The hosted web receiver remains unpublished, so
+current hosted pages will not consume the native measurements. Native source
+selection, microphone behavior, cookies and shutdown still require OBS host testing.
 
 ## Repository boundary
 
-This repository owns the native wrapper, compiler/SDK preparation and packaging.
-The hosted `/dock` UI and `apps/web/src/dock/native` receiver stay in the Roadie
-application. The version 1 event below is the contract between the two repositories;
-coordinate changes to it across both before publishing.
+This repo owns the native wrapper, compiler/SDK preparation and packaging.
+Roadie owns `/dock` and `apps/web/src/dock/native`. The version 1 event below is
+the contract between them; coordinate contract changes across both repos.
+
+## Minimum compatibility policy
+
+Target the oldest APIs required by the feature instead of the builder's installed
+OBS version. The dock registration/removal API sets the OBS minimum at **30.0.0**;
+source UUID lookup is available earlier. The native browser interface used here
+is panel API **version 3**, present in the matching OBS 30.0.0, 32.0.4 and 32.2.1
+sources. The required virtual method signatures/order match across those headers.
+
+The plugin checks OBS >= 30.0.0, Qt major 6 with runtime >= 6.5.3, and browser panel
+API version 3. It no longer requires an exact OBS release. Compiling and linking
+against the minimum distribution avoids importing newer OBS/Qt symbols. OBS owns
+its Qt/browser DLLs; this package contains no substitute OBS or Qt runtime.
+Future versions or different browser builds still need compatibility verification.
+No supported-version claim extends to non-Windows or non-x64 builds.
+
+Static Release and isolated Windows DLL-loader checks passed on:
+
+| OBS distribution | Qt runtime | DLL dependency resolution | Actual OBS host behavior |
+|---|---|---|---|
+| 30.0.0 | 6.5.3 | passed | not tested |
+| 32.0.4 | 6.8.3 | passed | not tested |
+| 32.2.1 | 6.11.1 | passed | not tested |
+
+The loader probe reads `obs_module_ver` and confirms the exported API minimum is
+30.0.0. It does not invoke `obs_module_load`, create UI or start OBS. The previous
+0.1.0 DLL fails the same 32.0.4 probe with Windows error 127. Compilation and loading
+checks do not establish authentication, meter behavior or callback/UI lifecycle.
 
 ## Windows build
 
-The initial test target is **OBS 32.2.1, Windows x64, Qt 6.11.1**. This build rejects
-other OBS versions at module load and requires browser panel API version 3. Broader
-compatibility needs host verification and matching headers; do not update OBS just
-to build this plugin.
-
 ```powershell
-# Public downloads, locked hashes, ignored cache. No administrator access needed.
 ./scripts/prepare-sdk.ps1
-
-# Microsoft C++ Build Tools + Windows SDK. Windows asks for administrator approval.
 # Skip if Visual Studio 2022 C++ tools are already installed.
 ./scripts/install-build-tools.ps1
-
-# Compile Release, inspect exports/dependencies and stage the plugin. No OBS install.
 ./scripts/build-windows.ps1
 ```
 
-The preparation script downloads official OBS 32.2.1 source, its exact obs-browser
-panel header, OBS's matching Qt bundle and portable CMake 3.30.5. The SDK lock file
-records SHA-256 checksums. Qt and CMake hashes were verified against official
-upstream metadata; OBS source/header hashes lock the initially retrieved bytes.
-The Microsoft installer helper checks its pinned bootstrapper hash and Authenticode
-signature. Component versions come from Microsoft's installer channel; this is
-not a hermetic compiler snapshot.
+Preparation verifies pinned public downloads under ignored `build/sdk/30.0.0`.
+It extracts the official OBS 30 archive for import libraries and loader testing;
+it never installs or launches it, and never changes an installed OBS. Build tools
+use portable CMake 3.30.5 plus MSVC 19.44 / Windows SDK 10.0.26100.0.
 
-The build script resolves the installed VS 2022 x64 compiler and uses the installed
-OBS DLL export tables to generate local import libraries. CMake uses the official
-OBS headers and a generated `obsconfig.h`; it does not rebuild OBS or substitute CEF
-vtable declarations. The Qt SDK version is checked against the installed OBS Qt DLL.
-OBS binaries and SDK assets are never committed or included in the plugin package.
+The Qt checksum comes from OBS 30's official `buildspec.json`; the official OBS
+executable's Authenticode signature is also verified. Source, browser-header and
+historical OBS archive hashes lock the retrieved bytes; that release did not expose
+an upstream archive digest. The original SDK lock is retained for build provenance.
 
-The browser factory and lifecycle were checked against the matching upstream
-implementation: the factory returns a new `QCef`, the cookie manager has a virtual
-destructor, and destroying the browser widget closes its browser. Native compilation
-and actual unload behavior remain separate verification steps.
+The build generates import libraries from the baseline OBS DLL export tables and
+includes official SDK/browser declarations. It does not rebuild OBS or invent a
+CEF vtable. Browser objects use the matching factory and virtual destructors.
+MSVC environment values remain internal and are never printed.
 
-The output is `stage/obs-plugins/64bit/roadie-signal.dll`, a build report and DLL
-inspection report. Build scripts do not install into OBS, upload, sign, publish or
-deploy anything. For manual host testing, close OBS, copy the staged DLL into your
-OBS installation's `obs-plugins/64bit` directory, then reopen OBS. Remove that DLL
-with OBS closed to uninstall. The test build is unsigned.
+Outputs:
 
-Current local validation (2026-09-29): the user installed Microsoft C++ Build Tools
-successfully. Release compilation passed using MSVC 19.44 and Windows SDK
-10.0.26100.0. DLL dependency, x64 architecture and OBS module-export checks are
-part of the build script. Host behavior is unverified; the user will test in OBS.
-The earlier installer cancellation is resolved and no Codex restart was needed.
+- `stage/obs30.0.0/obs-plugins/64bit/roadie-signal.dll`
+- `stage/obs30.0.0/build-report.json` and DLL inspection report
+- `build/roadie-signal-0.1.1-obs30.0.0-minimum-windows-x64.zip`
 
-The build also creates `build/roadie-signal-0.1.0-obs32.2.1-windows-x64.zip` with
-the plugin folder layout, this README and a source/hash build report. The package
-is for manual testing only. Without publication of Roadie's matching web provider,
-the hosted page will not consume native audio measurements. Dock loading and
-sign-in can still be checked; no microphone waveform or silence warning is shown.
+Build scripts do not install into OBS, upload, sign, publish or deploy anything.
+For manual testing, close OBS, replace only `roadie-signal.dll` in your installation's
+`obs-plugins/64bit` folder, then reopen OBS and enable **Docks → Roadie Signal**.
+To uninstall, remove that DLL with OBS closed. Do not copy the build SDK's OBS/Qt
+DLLs into your installation. This is an unsigned test package.
 
-The default origin is `https://dashboard.roadie.gg`. A separate local build may
-set `ROADIE_SIGNAL_ORIGIN` to a loopback HTTP origin. Browser cookies live under
-the plugin's OBS runtime config directory. No API keys are required by the
-plugin; sign-in remains the ordinary web session.
+An optional developer loader probe uses standard-library Python on Windows:
+
+```powershell
+python scripts/check-dll-load.py --dll stage/obs30.0.0/obs-plugins/64bit/roadie-signal.dll --obs-root build/sdk/30.0.0/obs-host
+```
+
+Run each distribution in a separate process to isolate Qt runtimes. The 32.0.4
+fixture was verified against its official release digest. Actual tests belong in
+OBS on the streaming machine after dependency validation.
+
+The trusted origin defaults to `https://dashboard.roadie.gg`. A separate local build
+can specify a loopback HTTP origin. Browser cookies live in the plugin's OBS config;
+no API keys are needed and sign-in uses the existing web session.
 
 ## Local bridge, version 1
 
@@ -136,7 +146,7 @@ connector history.
 
 ## Acceptance checks still required
 
-1. Compile a Release DLL with the matching SDK — passed locally; verify the staged build report before installing.
+1. Compile against the minimum SDK and inspect exports/dependencies — passed; verify the staged build report before installing.
 2. Install into a test OBS setup. Confirm one dock, Docks-menu toggle, docking,
    resizing, close/reopen, restart and normal Signal navigation/raid preemption.
 3. Confirm sign-in and cookies survive restart; test expired login, OAuth redirects,

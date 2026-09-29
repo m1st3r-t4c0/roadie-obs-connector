@@ -1,22 +1,26 @@
 {
-  "obsVersion": "32.2.1",
+  "obsVersion": "30.0.0",
   "obsSource": {
-    "url": "https://github.com/obsproject/obs-studio/archive/refs/tags/32.2.1.zip",
-    "sha256": "0cc1bd46a3d60c8f4317b38c27414fc0472e04609f4e67ad2142ed1598ef5462"
+    "url": "https://github.com/obsproject/obs-studio/archive/refs/tags/30.0.0.zip",
+    "sha256": "2bfdadf5f46ba56276d588b77653a10b9e2b2e3c05d8029b27a25b8ada9ab474"
   },
   "browserPanel": {
-    "commit": "3f0a2cdf378939ebe3c6f9ab36d4ea100c25aac2",
-    "url": "https://raw.githubusercontent.com/obsproject/obs-browser/3f0a2cdf378939ebe3c6f9ab36d4ea100c25aac2/panel/browser-panel.hpp",
-    "sha256": "d88f281decbd66a58644e27078531a5a514a75aada4fcc154ad315bb5823890d"
+    "commit": "e397df52e70392ebb9146e0ab6317c0d1a30bce4",
+    "url": "https://raw.githubusercontent.com/obsproject/obs-browser/e397df52e70392ebb9146e0ab6317c0d1a30bce4/panel/browser-panel.hpp",
+    "sha256": "321f839d237ab19ba100e3c47b33d5d4a62479f226b67d692661d1c6c4c4681c"
   },
   "qt": {
-    "version": "6.11.1",
-    "url": "https://github.com/obsproject/obs-deps/releases/download/2026-07-15/windows-deps-qt6-2026-07-15-x64.zip",
-    "sha256": "7c7f985711d80467bdc1795b6592275a27d5b0e5a2c7a61db1f2c1d08d6a5579"
+    "version": "6.5.3",
+    "url": "https://github.com/obsproject/obs-deps/releases/download/2023-11-03/windows-deps-qt6-2023-11-03-x64.zip",
+    "sha256": "bc57dedf76b47119a6dce0435a2f21b35b08c8f2948b1cb34a157320f77732d1"
   },
   "cmake": {
     "version": "3.30.5",
     "url": "https://github.com/Kitware/CMake/releases/download/v3.30.5/cmake-3.30.5-windows-x86_64.zip",
     "sha256": "5ab6e1faf20256ee4f04886597e8b6c3b1bd1297b58a68a58511af013710004b"
+  },
+  "obsHost": {
+    "url": "https://github.com/obsproject/obs-studio/releases/download/30.0.0/OBS-Studio-30.0.zip",
+    "sha256": "016d659a488df07f386e8f2ce7a7db977a788db4ac65e6af1119e326a76d44bf"
   }
 }

@@ -12,8 +12,10 @@ files. Preserve changes made by others and commit only your own work.
 Local commits are automatic. Show the commits and diff and obtain explicit user
 approval before pushing, publishing releases, opening pull requests, or installing
 into OBS. Never force-push. Do not update dependencies without package-specific
-approval. Native tool preparation is authorized for the initial Windows x64 /
-OBS 32.2.1 build; other platforms and OBS versions need compatibility verification.
+approval. Native tool preparation targets Windows x64 / minimum OBS 30.0.0 and Qt 6.5.3.
+The user requires support for older OBS without updating their streaming machine.
+Use baseline SDKs; verify newer versions and the browser panel ABI before claiming
+compatibility. Other platforms require separate verification.
 
 OBS binaries, SDK archives and compiler outputs belong in ignored `build/` and
 `stage/` directories. Check downloaded SDK/tool hashes against official metadata.

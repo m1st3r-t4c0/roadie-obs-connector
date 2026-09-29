@@ -6,6 +6,7 @@
 #include <QAction>
 #include <QPointer>
 #include <memory>
+#include <QVersionNumber>
 
 OBS_DECLARE_MODULE()
 MODULE_EXPORT const char *obs_module_description()
@@ -76,10 +77,18 @@ void frontendEvent(enum obs_frontend_event event, void *)
 
 bool obs_module_load()
 {
-  if (obs_get_version() != LIBOBS_API_VER) {
-    blog(LOG_WARNING, "[roadie-signal] this test build requires OBS 32.2.1");
+  if (obs_get_version() < MAKE_SEMANTIC_VERSION(30, 0, 0)) {
+    blog(LOG_WARNING, "[roadie-signal] OBS 30.0.0 or newer required");
     return false;
   }
+  const auto runtimeQt = QVersionNumber::fromString(QString::fromLatin1(qVersion()));
+  const QVersionNumber minimumQt(QT_VERSION_MAJOR, QT_VERSION_MINOR, QT_VERSION_PATCH);
+  if (runtimeQt.majorVersion() != QT_VERSION_MAJOR || runtimeQt < minimumQt) {
+    blog(LOG_WARNING, "[roadie-signal] compatible Qt 6.5.3 or newer required; runtime is %s", qVersion());
+    return false;
+  }
+  blog(LOG_INFO, "[roadie-signal] native dock 0.1.1; OBS %s; Qt %s; baseline OBS 30.0.0 / Qt 6.5.3",
+       obs_get_version_string(), qVersion());
   obs_frontend_add_event_callback(frontendEvent, nullptr);
   return true;
 }
