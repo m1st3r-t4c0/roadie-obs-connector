@@ -2,14 +2,15 @@
 
 Version **0.1.5** is a local Windows x64 test build compiled against the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
-OBS 32.0.4. The matching web receiver is still an unpublished local change in Roadie.
+OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
+plugin must send state and the signed-in owner must enable sharing in Signal's gear.
 
 The 0.1.4 change added a second local bridge for OBS streaming, recording and
 current-scene state. It publishes changed state within one second plus a five-second
 heartbeat to the signed-in `/dock` page. The page's Signal gear can opt in to
 sharing this narrow state with Roadie's server. No microphone measurements or
-audio are sent with it. This build is not published or installed yet; the server
-and web changes are also local.
+audio are sent with it. The [0.1.4 test package](releases/v0.1.4-test.1/README.md)
+is available in this repository. Version 0.1.5 remains a local test build.
 
 This version fixes a startup failure confirmed in an OBS 32.0.4 log: the module
 loaded, but its browser cookie directory could not be created, leaving no dock.
@@ -20,7 +21,9 @@ replacement DLL had not taken effect on that machine. The current build displays
 running version under **Tools → Roadie Signal 0.1.5 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
-The 0.1.3 test release is published; the 0.1.4 bridge and 0.1.5 shutdown fix require host testing.
+The 0.1.3 test release is published; the 0.1.4 bridge and 0.1.5 shutdown fix still
+require OBS host testing. The 0.1.4 package has a known shutdown-crash risk; see its
+release note before installing it.
 Version 0.1.5 removes the browser dock before OBS clears scene/UI data during
 shutdown, addressing the September 30 crash stack. See
 [the shutdown diagnosis](docs/2026-09-30-shutdown-crash.md).
