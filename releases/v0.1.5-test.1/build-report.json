@@ -1,0 +1,11 @@
+{
+  "obsVersion": "30.0.0",
+  "qtVersion": "6.5.3",
+  "compiler": "MSVC 19.44.35229.0",
+  "origin": "https://dashboard.roadie.gg",
+  "dllSha256": "923b7af4a1e3bfe9807df1ae8235eee737f651f3befead443dffed338aaa726b",
+  "hostTested": false,
+  "sourceCommit": "6a2de82f0ec99c8dd446f777b71e42716f532425",
+  "sourceDirty": false,
+  "obsDllSha256": "841151f250d159b3839b3465406b65f7d7a36d0091964912debb7367cd630171"
+}

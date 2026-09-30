@@ -21,9 +21,9 @@ replacement DLL had not taken effect on that machine. The current build displays
 running version under **Tools → Roadie Signal 0.1.5 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
-The 0.1.3 test release is published; the 0.1.4 bridge and 0.1.5 shutdown fix still
-require OBS host testing. The 0.1.4 package has a known shutdown-crash risk; see its
-release note before installing it.
+The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
+OBS 32.0.4. The [0.1.5 test package](releases/v0.1.5-test.1/README.md) contains
+the shutdown and session-flush changes for the next OBS host check.
 Version 0.1.5 removes the browser dock before OBS clears scene/UI data during
 shutdown, addressing the September 30 crash stack. It also flushes the dock's
 persisted session cookies periodically and before browser destruction, because
