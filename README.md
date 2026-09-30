@@ -1,21 +1,29 @@
 # Roadie Signal native OBS dock
 
-Version **0.1.3** is a local Windows x64 test build compiled against the minimum
+Version **0.1.4** is a local Windows x64 test build compiled against the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. The matching web receiver is still an unpublished local change in Roadie.
+
+The 0.1.4 change adds a second local bridge for OBS streaming, recording and
+current-scene state. It publishes changed state within one second plus a five-second
+heartbeat to the signed-in `/dock` page. The page's Signal gear can opt in to
+sharing this narrow state with Roadie's server. No microphone measurements or
+audio are sent with it. This build is not published or installed yet; the server
+and web changes are also local.
 
 This version fixes a startup failure confirmed in an OBS 32.0.4 log: the module
 loaded, but its browser cookie directory could not be created, leaving no dock.
 The QCef cookie API requires a relative storage name, not an absolute Windows path.
 See [the diagnosis and validation record](docs/cookie-directory-startup.md).
 The September 30 host log still identifies the loaded plugin as **0.1.1**, so the
-replacement DLL had not taken effect on that machine. Version 0.1.3 displays its
-running version under **Tools → Roadie Signal 0.1.3 status…**, even if dock startup
+replacement DLL had not taken effect on that machine. The current build displays its
+running version under **Tools → Roadie Signal 0.1.4 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
-Version 0.1.3 has not been published or installed and still requires host testing.
+The 0.1.3 test release is published; the new 0.1.4 bridge requires host testing.
 
 The previous test downloads are
+[v0.1.3-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.3-test.1),
 [v0.1.2-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.2-test.1)
 and [v0.1.1-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.1-test.1).
 The 0.1.1 build contains the cookie-path bug. The older v0.1.0-test.1 DLL was tied to
@@ -101,7 +109,7 @@ Outputs:
 
 - `stage/obs30.0.0/obs-plugins/64bit/roadie-signal.dll`
 - `stage/obs30.0.0/build-report.json` and DLL inspection report
-- `build/roadie-signal-0.1.3-obs30.0.0-minimum-windows-x64.zip`
+- `build/roadie-signal-0.1.4-obs30.0.0-minimum-windows-x64.zip`
 
 Build scripts do not install into OBS, upload, sign, publish or deploy anything.
 For manual testing, close OBS, replace only `roadie-signal.dll` in your installation's
@@ -154,6 +162,30 @@ the saved source. No privileged page-to-native command interface is exposed.
 These checks isolate this one-way telemetry; they are not a sandbox against a
 compromised trusted Roadie page. Source names and readings do not enter cloud
 connector history.
+
+## Local OBS state bridge, version 1
+
+The second CustomEvent is `roadie:obs-state`. It uses the same plugin session id
+and its own monotonic sequence:
+
+```json
+{
+  "version": 1,
+  "sessionId": "plugin-instance-id",
+  "sequence": 1,
+  "streaming": false,
+  "recording": false,
+  "scene": "Gameplay"
+}
+```
+
+`scene` is null when OBS has no current scene. Frontend status is read on the Qt
+timer, never in an audio callback. State changes arrive within one second; an
+unchanged snapshot is sent every five seconds to recover after page reloads.
+The script checks the top-level Roadie origin, exact `/dock` path and the state
+provider marker. The web page alone owns the optional, owner-authenticated relay
+to Roadie. Its gear switch defaults off and sends only these state fields, not
+microphone data. OBS's built-in WebSocket server is not needed for this bridge.
 
 ## Acceptance checks still required
 

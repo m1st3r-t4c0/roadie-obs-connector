@@ -1,6 +1,7 @@
 #include "signal-dock.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <util/platform.h>
 #include <QComboBox>
 #include <QDialog>
@@ -51,6 +52,8 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   QObject::connect(browser_, SIGNAL(urlChanged(QString)), this, SLOT(navigationChanged(QString)));
   timer_.setInterval(100);
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
+  stateTimer_.setInterval(1000);
+  connect(&stateTimer_, &QTimer::timeout, this, [this] { publishState(); });
   char *config = obs_module_config_path("settings.json");
   obs_data_t *settings = config ? obs_data_create_from_json_file(config) : nullptr;
   bfree(config);
@@ -63,6 +66,7 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   // also checks the actual frame origin/path, covering redirects before urlChanged.
   trustedPage_ = true;
   timer_.start();
+  stateTimer_.start();
 }
 
 bool SignalDock::initialized() const { return !browser_.isNull(); }
@@ -70,6 +74,7 @@ bool SignalDock::initialized() const { return !browser_.isNull(); }
 SignalDock::~SignalDock()
 {
   timer_.stop();
+  stateTimer_.stop();
   audio_.detach();
   // Deleting the child browser must precede tearing down the native callback state.
   if (browser_)
@@ -89,6 +94,7 @@ void SignalDock::navigationChanged(const QString &url)
     audio_.detach();
   } else {
     audio_.select(selectedUuid_);
+    lastState_ = {};
   }
 }
 
@@ -106,6 +112,35 @@ void SignalDock::publish()
       "(()=>{if(window.top!==window||location.origin!==" + originJson +
       "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsAudio!=='1')return;"
       "window.dispatchEvent(new CustomEvent('roadie:obs-audio',{detail:" + payload + "}));})()";
+  browser_->executeJavaScript(script.toStdString());
+}
+
+void SignalDock::publishState()
+{
+  if (!browser_ || !trustedPage_)
+    return;
+  obs_source_t *sceneSource = obs_frontend_get_current_scene();
+  const QString scene = sceneSource ? QString::fromUtf8(obs_source_get_name(sceneSource)) : QString();
+  if (sceneSource)
+    obs_source_release(sceneSource);
+  const QJsonObject state{{"streaming", obs_frontend_streaming_active()},
+                          {"recording", obs_frontend_recording_active()},
+                          {"scene", scene.isEmpty() ? QJsonValue::Null : QJsonValue(scene)}};
+  // OBS status changes are visible within one second. The five-second heartbeat
+  // lets a reloaded page recover without continuous repeated state frames.
+  if (state == lastState_ && ++stateTicks_ % 5 != 0)
+    return;
+  lastState_ = state;
+  QJsonObject frame = state;
+  frame["version"] = 1;
+  frame["sessionId"] = sessionId_;
+  frame["sequence"] = static_cast<double>(++stateSequence_);
+  const QByteArray originJson = QJsonDocument(QJsonArray{origin()}).toJson(QJsonDocument::Compact);
+  const QByteArray payload = QJsonDocument(frame).toJson(QJsonDocument::Compact);
+  const QByteArray script =
+      "(()=>{if(window.top!==window||location.origin!==" + originJson +
+      "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsState!=='1')return;"
+      "window.dispatchEvent(new CustomEvent('roadie:obs-state',{detail:" + payload + "}));})()";
   browser_->executeJavaScript(script.toStdString());
 }
 
