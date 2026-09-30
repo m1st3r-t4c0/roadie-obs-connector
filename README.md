@@ -1,10 +1,10 @@
 # Roadie Signal native OBS dock
 
-Version **0.1.4** is a local Windows x64 test build compiled against the minimum
+Version **0.1.5** is a local Windows x64 test build compiled against the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. The matching web receiver is still an unpublished local change in Roadie.
 
-The 0.1.4 change adds a second local bridge for OBS streaming, recording and
+The 0.1.4 change added a second local bridge for OBS streaming, recording and
 current-scene state. It publishes changed state within one second plus a five-second
 heartbeat to the signed-in `/dock` page. The page's Signal gear can opt in to
 sharing this narrow state with Roadie's server. No microphone measurements or
@@ -17,10 +17,13 @@ The QCef cookie API requires a relative storage name, not an absolute Windows pa
 See [the diagnosis and validation record](docs/cookie-directory-startup.md).
 The September 30 host log still identifies the loaded plugin as **0.1.1**, so the
 replacement DLL had not taken effect on that machine. The current build displays its
-running version under **Tools → Roadie Signal 0.1.4 status…**, even if dock startup
+running version under **Tools → Roadie Signal 0.1.5 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
-The 0.1.3 test release is published; the new 0.1.4 bridge requires host testing.
+The 0.1.3 test release is published; the 0.1.4 bridge and 0.1.5 shutdown fix require host testing.
+Version 0.1.5 removes the browser dock before OBS clears scene/UI data during
+shutdown, addressing the September 30 crash stack. See
+[the shutdown diagnosis](docs/2026-09-30-shutdown-crash.md).
 
 The previous test downloads are
 [v0.1.3-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.3-test.1),
@@ -109,7 +112,7 @@ Outputs:
 
 - `stage/obs30.0.0/obs-plugins/64bit/roadie-signal.dll`
 - `stage/obs30.0.0/build-report.json` and DLL inspection report
-- `build/roadie-signal-0.1.4-obs30.0.0-minimum-windows-x64.zip`
+- `build/roadie-signal-0.1.5-obs30.0.0-minimum-windows-x64.zip`
 
 Build scripts do not install into OBS, upload, sign, publish or deploy anything.
 For manual testing, close OBS, replace only `roadie-signal.dll` in your installation's

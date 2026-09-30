@@ -104,7 +104,11 @@ void frontendEvent(enum obs_frontend_event event, void *)
     addStatusAction();
     startDock();
   }
-  if (event == OBS_FRONTEND_EVENT_EXIT)
+  // EXIT is emitted after OBS clears its scene/UI data. Removing our browser dock
+  // there destroys QCefWidget while the main window is already closing; the
+  // reported OBS 32.0.4 crash occurs in that exact destructor stack. Release the
+  // dock at the earlier shutdown event, before OBS starts clearing its UI.
+  if (event == OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN)
     stopDock();
 }
 }
