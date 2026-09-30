@@ -41,11 +41,16 @@ The reported 0.1.1 failure never opened a browser, so there is no successful log
 store to migrate for this case. The corrected private cookie namespace stays
 stable across future builds. Do not delete unrelated browser storage.
 
-This is a local test package, not an installation or published release. The
-streamer performs the real OBS check after approving a replacement package:
+Version 0.1.2 was published as a test prerelease. A later September 30 host log
+still reported 0.1.1 with the same cookie failure, establishing that OBS was
+loading an older DLL. Version 0.1.3 adds a Tools-menu status action before dock
+initialization, so the running version and startup result remain visible even
+when the dock fails. The streamer performs the real OBS check after installing
+the replacement package:
 close OBS, replace only the plugin DLL, restart, confirm Docks -> Roadie Signal,
-and verify the new success line. Then check sign-in persistence, microphone
-settings and shutdown. Reverting to 0.1.1 would restore the reported failure;
+check Tools -> Roadie Signal status and verify the new success line. Then check
+sign-in persistence, microphone settings and shutdown. Reverting to 0.1.1 would
+restore the reported failure;
 removing the test DLL with OBS closed removes the plugin without resetting OBS.
 
 ## Validation
@@ -59,6 +64,9 @@ removing the test DLL with OBS closed removes the plugin without resetting OBS.
   the corrected relative argument; the latter directory existed afterwards.
   It ran only under the ignored build directory, never live OBS configuration.
 - `git diff --check` passed.
+- Version 0.1.3 compiled against the same baseline SDK, and isolated DLL-loader
+  probes passed with the OBS 30.0.0 and 32.0.4 distributions. Its status menu
+  still requires OBS host verification.
 
 Real OBS host behavior, cookies across restart and microphone behavior remain
 unverified. Static loading alone did not catch the original cookie-path error,
