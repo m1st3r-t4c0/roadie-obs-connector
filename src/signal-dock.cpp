@@ -54,6 +54,13 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
   stateTimer_.setInterval(1000);
   connect(&stateTimer_, &QTimer::timeout, this, [this] { publishState(); });
+  // Roadie uses a session cookie. Persist it while the dock is running so a
+  // shutdown fault cannot be the only chance to write the signed-in session.
+  cookieFlushTimer_.setInterval(30000);
+  connect(&cookieFlushTimer_, &QTimer::timeout, this, [this] {
+    if (cookieManager_)
+      cookieManager_->FlushStore();
+  });
   char *config = obs_module_config_path("settings.json");
   obs_data_t *settings = config ? obs_data_create_from_json_file(config) : nullptr;
   bfree(config);
@@ -67,6 +74,7 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   trustedPage_ = true;
   timer_.start();
   stateTimer_.start();
+  cookieFlushTimer_.start();
 }
 
 bool SignalDock::initialized() const { return !browser_.isNull(); }
@@ -75,8 +83,12 @@ SignalDock::~SignalDock()
 {
   timer_.stop();
   stateTimer_.stop();
+  cookieFlushTimer_.stop();
   audio_.detach();
-  // Deleting the child browser must precede tearing down the native callback state.
+  // The browser's destructor has faulted during OBS shutdown. Ask CEF to write
+  // session cookies before closing it; keep the manager alive through close.
+  if (cookieManager_)
+    cookieManager_->FlushStore();
   if (browser_)
     delete browser_.data();
   if (cookieManager_)

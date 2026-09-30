@@ -30,6 +30,7 @@ private:
   std::unique_ptr<QCefCookieManager> cookieManager_;
   QTimer timer_;
   QTimer stateTimer_;
+  QTimer cookieFlushTimer_;
   AudioTap audio_;
   QString sessionId_;
   QString selectedUuid_;

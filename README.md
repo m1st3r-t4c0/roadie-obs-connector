@@ -25,7 +25,9 @@ The 0.1.3 test release is published; the 0.1.4 bridge and 0.1.5 shutdown fix sti
 require OBS host testing. The 0.1.4 package has a known shutdown-crash risk; see its
 release note before installing it.
 Version 0.1.5 removes the browser dock before OBS clears scene/UI data during
-shutdown, addressing the September 30 crash stack. See
+shutdown, addressing the September 30 crash stack. It also flushes the dock's
+persisted session cookies periodically and before browser destruction, because
+the 0.1.4 shutdown crash could skip the previous final flush. See
 [the shutdown diagnosis](docs/2026-09-30-shutdown-crash.md).
 
 The previous test downloads are
