@@ -17,6 +17,7 @@ public:
   explicit SignalDock(QCef *cef, QWidget *parent = nullptr);
   ~SignalDock() override;
   bool initialized() const;
+  void prepareForShutdown();
   void chooseMicrophone();
 
 private slots:
@@ -39,4 +40,5 @@ private:
   unsigned stateTicks_ = 0;
   QJsonObject lastState_;
   bool trustedPage_ = false;
+  bool shutdownPrepared_ = false;
 };

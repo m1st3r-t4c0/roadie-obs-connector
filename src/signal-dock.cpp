@@ -85,14 +85,36 @@ SignalDock::~SignalDock()
   stateTimer_.stop();
   cookieFlushTimer_.stop();
   audio_.detach();
-  // The browser's destructor has faulted during OBS shutdown. Ask CEF to write
-  // session cookies before closing it; keep the manager alive through close.
   if (cookieManager_)
     cookieManager_->FlushStore();
   if (browser_)
     delete browser_.data();
+}
+
+void SignalDock::prepareForShutdown()
+{
+  if (shutdownPrepared_)
+    return;
+  shutdownPrepared_ = true;
+  timer_.stop();
+  stateTimer_.stop();
+  cookieFlushTimer_.stop();
+  audio_.detach();
   if (cookieManager_)
     cookieManager_->FlushStore();
+  if (!browser_)
+    return;
+
+  // QCefWidgetInternal::~QCefWidgetInternal enters a nested Qt event loop to
+  // close CEF. On OBS 32.0.4 that path faults while the main window is closing,
+  // even at SCRIPTING_SHUTDOWN. Detach the hidden widget from OBS's dock tree;
+  // the process will reclaim it after OBS exits. Do not schedule deleteLater:
+  // that would run the same crashing destructor during shutdown.
+  browser_->hide();
+  layout()->removeWidget(browser_);
+  browser_->setParent(nullptr);
+  browser_ = nullptr;
+  blog(LOG_INFO, "[roadie-signal] detached browser widget for OBS shutdown");
 }
 
 void SignalDock::navigationChanged(const QString &url)

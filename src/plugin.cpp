@@ -91,6 +91,7 @@ void stopDock()
   if (microphoneAction)
     delete microphoneAction.data();
   if (dock) {
+    dock->prepareForShutdown();
     obs_frontend_remove_dock(dockId);
     if (dock)
       delete dock.data();
@@ -104,10 +105,9 @@ void frontendEvent(enum obs_frontend_event event, void *)
     addStatusAction();
     startDock();
   }
-  // EXIT is emitted after OBS clears its scene/UI data. Removing our browser dock
-  // there destroys QCefWidget while the main window is already closing; the
-  // reported OBS 32.0.4 crash occurs in that exact destructor stack. Release the
-  // dock at the earlier shutdown event, before OBS starts clearing its UI.
+  // Unregister the native dock before module unload, but detach its browser
+  // first. Destroying the browser from this callback enters
+  // QCefWidgetInternal::closeBrowser and crashes in Qt on the test host.
   if (event == OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN)
     stopDock();
 }
