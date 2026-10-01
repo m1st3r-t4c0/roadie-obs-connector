@@ -26,7 +26,7 @@ The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
 OBS 32.0.4. Version 0.1.5 attempts to remove the browser dock before OBS clears
 scene/UI data during shutdown. A host screenshot confirms that 0.1.5 loaded and
 registered the dock in OBS 32.0.4 / Qt 6.8.3, but the user reports another crash
-on close. Its new crash stack is needed before the shutdown cause can be revised.
+on close. The new stack confirms the browser destructor still faulted in Qt.
 Version 0.1.5 also flushes the dock's
 persisted session cookies periodically and before browser destruction, because
 the 0.1.4 shutdown crash could skip the previous final flush. See
@@ -35,7 +35,8 @@ The 0.1.5 crash report confirms the same browser-destruction path. Version 0.1.6
 stops its timers and audio tap, flushes cookies, detaches the hidden browser
 widget from OBS's dock ownership, then unregisters the dock. The browser widget
 is left for process exit instead of running its crashing Qt/CEF destructor
-during shutdown. This is a test workaround, not yet a verified host fix.
+during shutdown. The [0.1.6 test package](releases/v0.1.6-test.1/README.md)
+is prepared locally; this is a test workaround, not yet a verified host fix.
 
 The previous test downloads are
 [v0.1.3-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.3-test.1),
