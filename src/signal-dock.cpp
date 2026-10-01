@@ -52,7 +52,7 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   QObject::connect(browser_, SIGNAL(urlChanged(QString)), this, SLOT(navigationChanged(QString)));
   timer_.setInterval(100);
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
-  stateTimer_.setInterval(1000);
+  stateTimer_.setInterval(5000);
   connect(&stateTimer_, &QTimer::timeout, this, [this] { publishState(); });
   // Flush persistent cookies while running. OBS ignores the session-cookie
   // persistence flag; Roadie must issue an expiring cookie to survive restart.
@@ -128,13 +128,12 @@ void SignalDock::navigationChanged(const QString &url)
     audio_.detach();
   } else {
     audio_.select(selectedUuid_);
-    lastState_ = {};
   }
 }
 
 void SignalDock::publish()
 {
-  if (!browser_ || !trustedPage_)
+  if (!browser_ || !trustedPage_ || shutdownPrepared_)
     return;
   QJsonObject frame = audio_.reading();
   frame["version"] = 1;
@@ -151,7 +150,7 @@ void SignalDock::publish()
 
 void SignalDock::publishState()
 {
-  if (!browser_ || !trustedPage_)
+  if (!browser_ || !trustedPage_ || shutdownPrepared_)
     return;
   obs_source_t *sceneSource = obs_frontend_get_current_scene();
   const QString scene = sceneSource ? QString::fromUtf8(obs_source_get_name(sceneSource)) : QString();
@@ -160,11 +159,7 @@ void SignalDock::publishState()
   const QJsonObject state{{"streaming", obs_frontend_streaming_active()},
                           {"recording", obs_frontend_recording_active()},
                           {"scene", scene.isEmpty() ? QJsonValue::Null : QJsonValue(scene)}};
-  // OBS status changes are visible within one second. The five-second heartbeat
-  // lets a reloaded page recover without continuous repeated state frames.
-  if (state == lastState_ && ++stateTicks_ % 5 != 0)
-    return;
-  lastState_ = state;
+  // Frontend callbacks publish changes immediately; this timer only supplies presence.
   QJsonObject frame = state;
   frame["version"] = 1;
   frame["sessionId"] = sessionId_;

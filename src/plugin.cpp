@@ -1,4 +1,5 @@
 #include "signal-dock.hpp"
+#include "scene-events.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -18,6 +19,7 @@ MODULE_EXPORT const char *obs_module_description()
 namespace {
 constexpr const char *dockId = "roadie-signal";
 std::unique_ptr<QCef> browser;
+std::unique_ptr<SceneEvents> sceneEvents;
 QPointer<SignalDock> dock;
 QPointer<QAction> microphoneAction;
 QPointer<QAction> statusAction;
@@ -92,6 +94,7 @@ void stopDock()
   if (stopping)
     return;
   stopping = true;
+  sceneEvents.reset();
   if (statusAction)
     delete statusAction.data();
   if (microphoneAction)
@@ -111,6 +114,25 @@ void frontendEvent(enum obs_frontend_event event, void *)
   if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
     addStatusAction();
     startDock();
+    sceneEvents = std::make_unique<SceneEvents>();
+  }
+  if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED && sceneEvents)
+    QMetaObject::invokeMethod(sceneEvents.get(), [] {
+      if (sceneEvents) sceneEvents->currentScene(true);
+    }, Qt::QueuedConnection);
+  switch (event) {
+  case OBS_FRONTEND_EVENT_SCENE_CHANGED:
+  case OBS_FRONTEND_EVENT_STREAMING_STARTED:
+  case OBS_FRONTEND_EVENT_STREAMING_STOPPED:
+  case OBS_FRONTEND_EVENT_RECORDING_STARTED:
+  case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
+  case OBS_FRONTEND_EVENT_RECORDING_PAUSED:
+  case OBS_FRONTEND_EVENT_RECORDING_UNPAUSED:
+    if (dock) QMetaObject::invokeMethod(dock, [target = dock] {
+      if (target) target->publishState();
+    }, Qt::QueuedConnection);
+    break;
+  default: break;
   }
   // Close CEF while the complete widget tree is alive, then unregister the dock.
   // Starting CEF close from the dock destructor permits nested paint events to

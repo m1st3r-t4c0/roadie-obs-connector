@@ -19,13 +19,13 @@ public:
   bool initialized() const;
   void prepareForShutdown();
   void chooseMicrophone();
+  void publishState();
 
 private slots:
   void navigationChanged(const QString &url);
 
 private:
   void publish();
-  void publishState();
   void saveSelection();
   QPointer<QCefWidget> browser_;
   std::unique_ptr<QCefCookieManager> cookieManager_;
@@ -37,8 +37,6 @@ private:
   QString selectedUuid_;
   quint64 sequence_ = 0;
   quint64 stateSequence_ = 0;
-  unsigned stateTicks_ = 0;
-  QJsonObject lastState_;
   bool trustedPage_ = false;
   bool shutdownPrepared_ = false;
 };

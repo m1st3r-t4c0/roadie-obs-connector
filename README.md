@@ -1,6 +1,6 @@
 # Roadie Signal native OBS dock
 
-Source version **0.1.6** is in development against the minimum
+Source version **0.1.7** is in development against the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
 plugin must send state and the signed-in owner must enable sharing in Signal's gear.
@@ -19,7 +19,7 @@ The QCef cookie API requires a relative storage name, not an absolute Windows pa
 See [the diagnosis and validation record](docs/cookie-directory-startup.md).
 The September 30 host log still identifies the loaded plugin as **0.1.1**, so the
 replacement DLL had not taken effect on that machine. The current build displays its
-running version under **Tools → Roadie Signal 0.1.6 status…**, even if dock startup
+running version under **Tools → Roadie Signal 0.1.7 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
 The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
@@ -203,9 +203,9 @@ and its own monotonic sequence:
 }
 ```
 
-`scene` is null when OBS has no current scene. Frontend status is read on the Qt
-timer, never in an audio callback. State changes arrive within one second; an
-unchanged snapshot is sent every five seconds to recover after page reloads.
+`scene` is null when OBS has no current scene. Frontend callbacks queue status
+delivery on the Qt thread, never in an audio callback. Changes are sent immediately;
+a snapshot is also sent every five seconds for presence and page reload recovery.
 The script checks the top-level Roadie origin, exact `/dock` path and the state
 provider marker. The web page alone owns the optional, owner-authenticated relay
 to Roadie. Its gear switch defaults off and sends only these state fields, not
@@ -230,3 +230,36 @@ not prove the native ABI, authentication, cookie persistence, callback lifetime
 or behavior in OBS. Native host verification remains required.
 
 Product scope: [Signal activity spec](https://github.com/m1st3r-t4c0/roadie/blob/main/docs/specs/signal-activity.md).
+
+
+## 0.1.7 implementation (unreleased)
+
+The current source combines the pre-close shutdown fix with local Stage transition
+events. It attaches directly to the main program transition's start/video-stop
+signals, including private sources, and reattaches on output channel changes, then
+calls the obs-browser `emit_event` vendor endpoint via obs-websocket's in-process
+API. No localhost server setting, password or network connection is required.
+The event carries only scene, phase, session/sequence/transition IDs and callback
+time. A five-second state heartbeat recovers browser reloads; progress heartbeats
+keep long/manual transitions active. Scene completion recovers a missed end; the
+web receiver reveals output after 15 seconds without transition progress or completion.
+Callbacks enqueue delivery on the Qt thread and are removed before dock shutdown.
+
+Native streaming/recording/scene status now publishes from frontend callbacks;
+the timer is only a five-second heartbeat. Roadie's matching implementation adds
+persistent 30-day dashboard/dock login and cached Stage views. Those web changes
+must deploy before the full behavior is available. The native wrapper alone
+cannot change Roadie's cookie expiry policy.
+
+Built with OBS 30.0.0 / Qt 6.5.3. Dependency-loader checks pass on OBS 30.0.0 and
+32.0.4. `tests/scene-events` exercises real libobs signals and Qt dispatch with a
+recording vendor endpoint: preview exclusion, ordered start/end IDs, stale end
+filtering and callback removal pass on both runtimes. It does not load CEF or
+measure GPU/host latency. The previous actual-browser shutdown probe remains
+available under `tests/browser-probe`.
+
+The web receiver exposes its last 50 callback-to-animation-frame samples and
+start-only p95 at `window.roadieObsTiming`. The target is under 100 ms for the
+first visual reaction. Actual OBS rendering performance and full-plugin restart
+behavior remain unverified. No 0.1.7 release or replacement package is published;
+the old 0.1.6 package remains withdrawn and must not be used.

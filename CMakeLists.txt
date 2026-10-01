@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(roadie-signal VERSION 0.1.6 LANGUAGES CXX)
+project(roadie-signal VERSION 0.1.7 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -23,7 +23,7 @@ if(NOT ROADIE_SIGNAL_ORIGIN MATCHES "^https://[A-Za-z0-9.-]+(:[0-9]+)?$" AND
   message(FATAL_ERROR "Signal origin must be an HTTPS origin or a loopback HTTP development origin, without a path.")
 endif()
 
-add_library(roadie-signal MODULE src/plugin.cpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp)
+add_library(roadie-signal MODULE src/plugin.cpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp)
 target_include_directories(roadie-signal PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
 target_link_libraries(roadie-signal PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)
 target_compile_definitions(roadie-signal PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
