@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.28)
+project(browser_probe LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+include("../../cmake/HostSdk.cmake")
+find_package(Qt6 6.5.3 REQUIRED COMPONENTS Widgets)
+add_executable(browser-probe probe.cpp)
+target_include_directories(browser-probe PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
+target_link_libraries(browser-probe PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)

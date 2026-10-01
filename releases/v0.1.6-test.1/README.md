@@ -1,5 +1,11 @@
 # Roadie Signal 0.1.6 test build
 
+**WITHDRAWN — do not install or publish this candidate.** The user declined
+another trial build. The packaged DLL contains a process-exit browser leak;
+subsequent local research reproduced the teardown fault and supports explicitly
+closing CEF before destroying its parent dock instead. The source has changed,
+but these artifacts have not been rebuilt. See `docs/2026-09-30-shutdown-crash.md`.
+
 This Windows x64 candidate tests a workaround for the OBS 32.0.4 close crash.
 The 0.1.5 crash report shows Qt faulting inside OBS Browser's
 `QCefWidgetInternal::closeBrowser` while Roadie removes its dock. Version 0.1.6

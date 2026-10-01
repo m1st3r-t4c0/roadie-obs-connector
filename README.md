@@ -1,6 +1,6 @@
 # Roadie Signal native OBS dock
 
-Version **0.1.6** is a local Windows x64 test build compiled against the minimum
+Source version **0.1.6** is in development against the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
 plugin must send state and the signed-in owner must enable sharing in Signal's gear.
@@ -28,15 +28,23 @@ scene/UI data during shutdown. A host screenshot confirms that 0.1.5 loaded and
 registered the dock in OBS 32.0.4 / Qt 6.8.3, but the user reports another crash
 on close. The new stack confirms the browser destructor still faulted in Qt.
 Version 0.1.5 also flushes the dock's
-persisted session cookies periodically and before browser destruction, because
-the 0.1.4 shutdown crash could skip the previous final flush. See
+cookie store periodically and before browser destruction, because
+the 0.1.4 shutdown crash could skip the previous final flush. This does not
+make session-only cookies persistent. See
 [the shutdown diagnosis](docs/2026-09-30-shutdown-crash.md).
-The 0.1.5 crash report confirms the same browser-destruction path. Version 0.1.6
-stops its timers and audio tap, flushes cookies, detaches the hidden browser
-widget from OBS's dock ownership, then unregisters the dock. The browser widget
-is left for process exit instead of running its crashing Qt/CEF destructor
-during shutdown. The [0.1.6 test package](releases/v0.1.6-test.1/README.md)
-is prepared locally; this is a test workaround, not yet a verified host fix.
+The 0.1.5 crash report confirms the same browser-destruction path. The first
+[0.1.6 candidate](releases/v0.1.6-test.1/README.md) is **withdrawn; do not install
+or publish it**. Research reproduced an access violation using OBS 32.0.4's real
+browser library when a queued paint ran during parent-dock destruction. Current
+source calls the public `closeBrowser()` method while the dock tree is still
+alive, then destroys the widgets normally. The isolated probe passes that order;
+the full plugin still needs integration validation. No replacement package has
+been prepared. See [the reproducible probe](tests/browser-probe/README.md).
+
+Authentication persistence is a separate web-side defect: Roadie issues a
+session-only cookie, and OBS 32.0.4 ignores the cookie-manager persistence flag.
+The isolated probe loses a session-only cookie after a clean restart while a
+persistent cookie survives. Periodic cookie flushing alone cannot fix this.
 
 The previous test downloads are
 [v0.1.3-test.1](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/v0.1.3-test.1),

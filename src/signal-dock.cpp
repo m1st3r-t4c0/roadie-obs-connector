@@ -54,8 +54,8 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
   stateTimer_.setInterval(1000);
   connect(&stateTimer_, &QTimer::timeout, this, [this] { publishState(); });
-  // Roadie uses a session cookie. Persist it while the dock is running so a
-  // shutdown fault cannot be the only chance to write the signed-in session.
+  // Flush persistent cookies while running. OBS ignores the session-cookie
+  // persistence flag; Roadie must issue an expiring cookie to survive restart.
   cookieFlushTimer_.setInterval(30000);
   connect(&cookieFlushTimer_, &QTimer::timeout, this, [this] {
     if (cookieManager_)
@@ -105,20 +105,20 @@ void SignalDock::prepareForShutdown()
   if (!browser_)
     return;
 
-  // QCefWidgetInternal::~QCefWidgetInternal enters a nested Qt event loop to
-  // close CEF. On OBS 32.0.4 that path faults while the main window is closing,
-  // even at SCRIPTING_SHUTDOWN. Detach the hidden widget from OBS's dock tree;
-  // the process will reclaim it after OBS exits. Do not schedule deleteLater:
-  // that would run the same crashing destructor during shutdown.
-  browser_->hide();
-  layout()->removeWidget(browser_);
-  browser_->setParent(nullptr);
-  browser_ = nullptr;
-  blog(LOG_INFO, "[roadie-signal] detached browser widget for OBS shutdown");
+  // closeBrowser pumps Qt events while waiting for CEF. Do this with the whole
+  // dock tree alive, before obs_frontend_remove_dock starts destroying it.
+  // A queued paint during parent-first deletion reproduces c0000005 in the
+  // OBS 32.0.4 browser probe; pre-closing leaves the later destructor a no-op.
+  trustedPage_ = false;
+  QObject::disconnect(browser_, nullptr, this, nullptr);
+  browser_->closeBrowser();
+  blog(LOG_INFO, "[roadie-signal] browser closed before dock destruction");
 }
 
 void SignalDock::navigationChanged(const QString &url)
 {
+  if (shutdownPrepared_)
+    return;
   const QUrl actual(url);
   const QUrl expected(origin());
   trustedPage_ = actual.scheme() == expected.scheme() && actual.host() == expected.host() &&

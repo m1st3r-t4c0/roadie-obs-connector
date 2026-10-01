@@ -86,6 +86,12 @@ void startDock()
 
 void stopDock()
 {
+  // closeBrowser runs a nested event loop; a second shutdown callback must
+  // not remove the parent while the first close is still in progress.
+  static bool stopping = false;
+  if (stopping)
+    return;
+  stopping = true;
   if (statusAction)
     delete statusAction.data();
   if (microphoneAction)
@@ -97,6 +103,7 @@ void stopDock()
       delete dock.data();
   }
   browser.reset();
+  stopping = false;
 }
 
 void frontendEvent(enum obs_frontend_event event, void *)
@@ -105,9 +112,9 @@ void frontendEvent(enum obs_frontend_event event, void *)
     addStatusAction();
     startDock();
   }
-  // Unregister the native dock before module unload, but detach its browser
-  // first. Destroying the browser from this callback enters
-  // QCefWidgetInternal::closeBrowser and crashes in Qt on the test host.
+  // Close CEF while the complete widget tree is alive, then unregister the dock.
+  // Starting CEF close from the dock destructor permits nested paint events to
+  // visit a partially destroyed Qt tree.
   if (event == OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN)
     stopDock();
 }
