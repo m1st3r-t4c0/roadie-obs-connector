@@ -1,4 +1,6 @@
 #include "signal-dock.hpp"
+#include "crash-reports.hpp"
+#include "stream-health.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -56,6 +58,12 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   connect(&stateTimer_, &QTimer::timeout, this, [this] { publishState(); });
   // Flush persistent cookies while running. OBS ignores the session-cookie
   // persistence flag; Roadie must issue an expiring cookie to survive restart.
+  // Stream health is sampled only while streaming; Roadie folds samples into minutes.
+  healthTimer_.setInterval(5000);
+  connect(&healthTimer_, &QTimer::timeout, this, [this] {
+    if (obs_frontend_streaming_active())
+      publishHealth();
+  });
   cookieFlushTimer_.setInterval(30000);
   connect(&cookieFlushTimer_, &QTimer::timeout, this, [this] {
     if (cookieManager_)
@@ -74,6 +82,7 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   trustedPage_ = true;
   timer_.start();
   stateTimer_.start();
+  healthTimer_.start();
   cookieFlushTimer_.start();
 }
 
@@ -83,6 +92,7 @@ SignalDock::~SignalDock()
 {
   timer_.stop();
   stateTimer_.stop();
+  healthTimer_.stop();
   cookieFlushTimer_.stop();
   audio_.detach();
   if (cookieManager_)
@@ -98,6 +108,7 @@ void SignalDock::prepareForShutdown()
   shutdownPrepared_ = true;
   timer_.stop();
   stateTimer_.stop();
+  healthTimer_.stop();
   cookieFlushTimer_.stop();
   audio_.detach();
   if (cookieManager_)
@@ -128,6 +139,7 @@ void SignalDock::navigationChanged(const QString &url)
     audio_.detach();
   } else {
     audio_.select(selectedUuid_);
+    crashDeliveries_ = 0; // a reloaded page has not seen the crash reports yet
   }
 }
 
@@ -164,12 +176,55 @@ void SignalDock::publishState()
   frame["version"] = 1;
   frame["sessionId"] = sessionId_;
   frame["sequence"] = static_cast<double>(++stateSequence_);
+  // Additive fields: receivers that predate them drop unknown keys.
+  frame["pluginVersion"] = QString::fromLatin1(ROADIE_SIGNAL_VERSION);
+  frame["obsVersion"] = QString::fromLatin1(obs_get_version_string());
+  dispatch("roadie:obs-state", "roadieObsState", frame);
+  publishCrashReports();
+}
+
+void SignalDock::publishHealth()
+{
+  if (!browser_ || !trustedPage_ || shutdownPrepared_)
+    return;
+  QJsonObject frame = sampleStreamHealth();
+  frame["version"] = 1;
+  frame["sessionId"] = sessionId_;
+  frame["sequence"] = static_cast<double>(++healthSequence_);
+  dispatch("roadie:obs-health", "roadieObsHealth", frame);
+}
+
+void SignalDock::publishCrashReports()
+{
+  // Sent with the first three state heartbeats after each trusted page load, so
+  // a page that mounts late still receives them. Roadie dedupes by sha256.
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || crashDeliveries_ >= 3)
+    return;
+  if (!crashReportsRead_) {
+    crashReports_ = recentCrashReports();
+    crashReportsRead_ = true;
+  }
+  ++crashDeliveries_;
+  if (crashReports_.isEmpty())
+    return;
+  const QJsonObject frame{{"version", 1},
+                          {"sessionId", sessionId_},
+                          {"pluginVersion", QString::fromLatin1(ROADIE_SIGNAL_VERSION)},
+                          {"obsVersion", QString::fromLatin1(obs_get_version_string())},
+                          {"reports", crashReports_}};
+  dispatch("roadie:obs-crash", "roadieObsCrash", frame);
+}
+
+void SignalDock::dispatch(const char *event, const char *marker, const QJsonObject &detail)
+{
+  // Every script re-checks the live frame's origin, exact /dock path and the
+  // marker the signed-in provider sets; nothing reaches any other page.
   const QByteArray originJson = QJsonDocument(QJsonArray{origin()}).toJson(QJsonDocument::Compact);
-  const QByteArray payload = QJsonDocument(frame).toJson(QJsonDocument::Compact);
-  const QByteArray script =
-      "(()=>{if(window.top!==window||location.origin!==" + originJson +
-      "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsState!=='1')return;"
-      "window.dispatchEvent(new CustomEvent('roadie:obs-state',{detail:" + payload + "}));})()";
+  const QByteArray payload = QJsonDocument(detail).toJson(QJsonDocument::Compact);
+  const QByteArray script = QByteArray("(()=>{if(window.top!==window||location.origin!==") + originJson +
+                            "[0]||location.pathname!=='/dock'||document.documentElement.dataset." + marker +
+                            "!=='1')return;window.dispatchEvent(new CustomEvent('" + event + "',{detail:" + payload +
+                            "}));})()";
   browser_->executeJavaScript(script.toStdString());
 }
 

@@ -134,6 +134,9 @@ void frontendEvent(enum obs_frontend_event event, void *)
     break;
   default: break;
   }
+  // The output still exists while stopping: take the night's last health sample.
+  if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING && dock)
+    dock->publishHealth();
   // Close CEF while the complete widget tree is alive, then unregister the dock.
   // Starting CEF close from the dock destructor permits nested paint events to
   // visit a partially destroyed Qt tree.
