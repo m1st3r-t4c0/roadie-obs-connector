@@ -5,6 +5,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+$projectDeclaration = Get-Content (Join-Path $repo 'CMakeLists.txt') -Raw
+if ($projectDeclaration -notmatch 'project\(roadie-signal VERSION ([0-9]+\.[0-9]+\.[0-9]+)') {
+    throw 'Could not read the connector version from CMakeLists.txt.'
+}
+$version = $Matches[1]
 $tools = Join-Path $repo 'build/sdk'
 $lock = Get-Content (Join-Path $PSScriptRoot 'sdk-lock.json') -Raw | ConvertFrom-Json
 $cache = Join-Path $tools $lock.obsVersion
@@ -91,6 +96,8 @@ $report = [ordered]@{
 $report | ConvertTo-Json | Set-Content "$stage/build-report.json"
 Write-Host "Release DLL staged at $dll. No plugin installed into OBS."
 Copy-Item -LiteralPath "$repo/README.md" -Destination "$stage/README.md" -Force
-$archive = Join-Path $repo "build/roadie-signal-0.1.6-obs$($lock.obsVersion)-minimum-windows-x64.zip"
+$archive = Join-Path $repo "build/roadie-signal-$version-obs$($lock.obsVersion)-minimum-windows-x64.zip"
 Compress-Archive -Path "$stage/obs-plugins", "$stage/README.md", "$stage/build-report.json" -DestinationPath $archive -Force
+Copy-Item -LiteralPath $dll -Destination (Join-Path $repo 'build/roadie-signal.dll') -Force
+Write-Host "Standalone DLL ready at $repo/build/roadie-signal.dll"
 Write-Host "Test package ready at $archive"

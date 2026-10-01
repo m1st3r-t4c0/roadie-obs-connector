@@ -1,9 +1,15 @@
 # Roadie Signal native OBS dock
 
-Source version **0.1.7** is in development against the minimum
+Source version **0.1.7** targets the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
 plugin must send state and the signed-in owner must enable sharing in Signal's gear.
+
+The [0.1.7 test package](releases/v0.1.7-test.1/README.md) includes a standalone
+[`roadie-signal.dll`](releases/v0.1.7-test.1/obs-plugins/64bit/roadie-signal.dll),
+the ZIP and build provenance. The GitHub prerelease also provides the DLL as its
+own download. Roadie's matching persistent-login and local Stage changes require
+the Roadie server/web deployment; publishing this plugin does not deploy them.
 
 The 0.1.4 change added a second local bridge for OBS streaming, recording and
 current-scene state. It publishes changed state within one second plus a five-second
@@ -38,10 +44,10 @@ or publish it**. Research reproduced an access violation using OBS 32.0.4's real
 browser library when a queued paint ran during parent-dock destruction. Current
 source calls the public `closeBrowser()` method while the dock tree is still
 alive, then destroys the widgets normally. The isolated probe passes that order;
-the full plugin still needs integration validation. No replacement package has
-been prepared. See [the reproducible probe](tests/browser-probe/README.md).
+the full plugin still needs integration validation. The 0.1.7 package includes
+that fix. See [the reproducible probe](tests/browser-probe/README.md).
 
-Authentication persistence is a separate web-side defect: Roadie issues a
+Authentication persistence required a separate web-side fix: Roadie issued a
 session-only cookie, and OBS 32.0.4 ignores the cookie-manager persistence flag.
 The isolated probe loses a session-only cookie after a clean restart while a
 persistent cookie survives. Periodic cookie flushing alone cannot fix this.
@@ -232,7 +238,7 @@ or behavior in OBS. Native host verification remains required.
 Product scope: [Signal activity spec](https://github.com/m1st3r-t4c0/roadie/blob/main/docs/specs/signal-activity.md).
 
 
-## 0.1.7 implementation (unreleased)
+## 0.1.7 test release
 
 The current source combines the pre-close shutdown fix with local Stage transition
 events. It attaches directly to the main program transition's start/video-stop
@@ -261,5 +267,5 @@ available under `tests/browser-probe`.
 The web receiver exposes its last 50 callback-to-animation-frame samples and
 start-only p95 at `window.roadieObsTiming`. The target is under 100 ms for the
 first visual reaction. Actual OBS rendering performance and full-plugin restart
-behavior remain unverified. No 0.1.7 release or replacement package is published;
+behavior remain unverified. The 0.1.7 package is a prerelease for host validation;
 the old 0.1.6 package remains withdrawn and must not be used.
