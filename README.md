@@ -1,6 +1,6 @@
 # Roadie Signal native OBS dock
 
-Version **0.1.5** is a local Windows x64 test build compiled against the minimum
+Version **0.1.5** is a Windows x64 test build compiled against the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
 plugin must send state and the signed-in owner must enable sharing in Signal's gear.
@@ -10,7 +10,8 @@ current-scene state. It publishes changed state within one second plus a five-se
 heartbeat to the signed-in `/dock` page. The page's Signal gear can opt in to
 sharing this narrow state with Roadie's server. No microphone measurements or
 audio are sent with it. The [0.1.4 test package](releases/v0.1.4-test.1/README.md)
-is available in this repository. Version 0.1.5 remains a local test build.
+is available in this repository. The [0.1.5 test package](releases/v0.1.5-test.1/README.md)
+is also available.
 
 This version fixes a startup failure confirmed in an OBS 32.0.4 log: the module
 loaded, but its browser cookie directory could not be created, leaving no dock.
@@ -22,10 +23,11 @@ running version under **Tools → Roadie Signal 0.1.5 status…**, even if dock 
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
 The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
-OBS 32.0.4. The [0.1.5 test package](releases/v0.1.5-test.1/README.md) contains
-the shutdown and session-flush changes for the next OBS host check.
-Version 0.1.5 removes the browser dock before OBS clears scene/UI data during
-shutdown, addressing the September 30 crash stack. It also flushes the dock's
+OBS 32.0.4. Version 0.1.5 attempts to remove the browser dock before OBS clears
+scene/UI data during shutdown. A host screenshot confirms that 0.1.5 loaded and
+registered the dock in OBS 32.0.4 / Qt 6.8.3, but the user reports another crash
+on close. Its new crash stack is needed before the shutdown cause can be revised.
+Version 0.1.5 also flushes the dock's
 persisted session cookies periodically and before browser destruction, because
 the 0.1.4 shutdown crash could skip the previous final flush. See
 [the shutdown diagnosis](docs/2026-09-30-shutdown-crash.md).

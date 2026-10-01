@@ -11,8 +11,11 @@ Roadie now removes its dock on `OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN`. OBS 30's
 shutdown source emits that event before `ClearSceneData()`, then emits `EXIT`.
 The module-unload fallback remains idempotent. The new host report at 18:20:43
 shows the same `obs_frontend_remove_dock` → `QCefWidgetInternal::closeBrowser`
-stack while testing the published 0.1.4 DLL; it does not test the unreleased
-0.1.5 shutdown change.
+stack while testing the published 0.1.4 DLL; it does not test the 0.1.5
+shutdown change. A subsequent host screenshot confirms Roadie Signal 0.1.5
+loaded and registered its dock in OBS 32.0.4 / Qt 6.8.3. The user reports that
+OBS still crashes on close with 0.1.5. No 0.1.5 crash stack has been supplied,
+so the failing teardown path for that version is not yet established.
 
 The dock uses a dedicated CEF cookie manager with session-cookie persistence
 enabled. In 0.1.4 its only explicit cookie flush ran after deleting the browser
@@ -26,7 +29,7 @@ microphone setting, or cookie directory changes are needed.
 Compatibility: the event is present in the minimum OBS 30 API and uses the same
 baseline SDK. Version 0.1.5 compiled with the pinned OBS 30 / Qt 6.5.3 SDK.
 Isolated DLL-loader probes passed against OBS 30.0.0 and 32.0.4, retaining the
-30.0.0 module minimum. These checks do not initialize OBS or close a dock; only
-an OBS 32.0.4 host close/restart can verify the crash is gone. If shutdown still
-crashes, capture its new stack before widening distribution. Rollback is to
+30.0.0 module minimum. These checks do not initialize OBS or close a dock. The
+OBS 32.0.4 host check confirmed loading but did not clear the shutdown crash;
+capture the 0.1.5 crash stack before changing teardown again. Rollback is to
 restore the prior plugin DLL with OBS closed; the web service is independent.
