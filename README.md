@@ -1,6 +1,6 @@
 # Roadie Signal native OBS dock
 
-Source version **0.1.7** targets the minimum
+Source version **0.1.8** targets the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
 plugin must send state and the signed-in owner must enable sharing in Signal's gear.
@@ -216,6 +216,54 @@ The script checks the top-level Roadie origin, exact `/dock` path and the state
 provider marker. The web page alone owns the optional, owner-authenticated relay
 to Roadie. Its gear switch defaults off and sends only these state fields, not
 microphone data. OBS's built-in WebSocket server is not needed for this bridge.
+
+## 0.1.8 additions — version, stream health and crash reports
+
+All three are additive. A Roadie page that predates them drops the unknown fields
+and ignores the new events, so 0.1.8 is safe against an older hosted web app.
+
+**`roadie:obs-state` gains `pluginVersion` and `obsVersion`** (strings), so the dock
+can show which build is running and offer an update when Roadie lists a newer one.
+
+**`roadie:obs-health`** (marker `roadieObsHealth`), every five seconds while
+streaming and once more on `STREAMING_STOPPING`, from the Qt thread:
+
+```json
+{
+  "version": 1,
+  "sessionId": "plugin-instance-id",
+  "sequence": 1,
+  "sampledAt": 1234567,
+  "streaming": true,
+  "outputFrames": 54000, "droppedFrames": 12, "bytesSent": 1350000000,
+  "congestion": 0.02, "reconnecting": false,
+  "renderFrames": 54010, "laggedFrames": 3,
+  "encodedFrames": 54000, "skippedFrames": 0
+}
+```
+
+Counters are cumulative since the output started; `sampledAt` is a monotonic
+millisecond clock, not wall time. The plugin keeps no history. Roadie's server
+folds consecutive samples into per-minute deltas for the stream recap. With no
+active output the frame is just `streaming: false`.
+
+**`roadie:obs-crash`** (marker `roadieObsCrash`), with the first three state
+heartbeats after each trusted page load: OBS's own crash reports from the last 14
+days, newest first, at most three, read once per OBS session from the `crashes`
+folder beside this plugin's config root (portable installs included).
+
+```json
+{
+  "version": 1, "sessionId": "...", "pluginVersion": "0.1.8", "obsVersion": "32.0.4",
+  "reports": [{ "fileName": "Crash 2026-09-30 21-14-05.txt", "modifiedAt": "2026-09-30T21:14:05Z",
+                "sha256": "...", "truncated": false, "text": "..." }]
+}
+```
+
+Each report is capped at 64 KB. `C:\Users\<name>` paths are replaced with
+`C:\Users\<user>` before hashing, so the hash is of what Roadie receives. The
+page sends them to Roadie only while its crash-report switch is on; Roadie
+dedupes by `sha256`. The plugin itself makes no network request.
 
 ## Acceptance checks still required
 
