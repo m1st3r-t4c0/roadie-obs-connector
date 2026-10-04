@@ -96,6 +96,8 @@ copyright and GPL notice remain in
 [third_party/obs-websocket-api.h](third_party/obs-websocket-api.h).
 The license applies to this repository's source and packaged plugin; Roadie's hosted
 web application is a separate project.
+The checked-in release ZIPs include LICENSE. Their DLLs and build reports are
+unchanged; checksums are recorded beside each package.
 
 ## Minimum compatibility policy
 

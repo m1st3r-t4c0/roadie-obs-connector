@@ -18,7 +18,7 @@ the standalone DLL in this release, then restart OBS. Keep the filename, and do 
 leave an older renamed Roadie DLL beside it. Check **Tools > Roadie Signal 0.1.10
 status...** and **Docks > Roadie Signal**.
 
-The ZIP has the same DLL, this guide, and the build report. The build is unsigned.
+The ZIP has the same DLL, this guide, LICENSE, and the build report. The build is unsigned.
 
 ## Verification
 

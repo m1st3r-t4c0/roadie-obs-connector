@@ -96,8 +96,9 @@ $report = [ordered]@{
 $report | ConvertTo-Json | Set-Content "$stage/build-report.json"
 Write-Host "Release DLL staged at $dll. No plugin installed into OBS."
 Copy-Item -LiteralPath "$repo/README.md" -Destination "$stage/README.md" -Force
+Copy-Item -LiteralPath "$repo/LICENSE" -Destination "$stage/LICENSE" -Force
 $archive = Join-Path $repo "build/roadie-signal-$version-obs$($lock.obsVersion)-minimum-windows-x64.zip"
-Compress-Archive -Path "$stage/obs-plugins", "$stage/README.md", "$stage/build-report.json" -DestinationPath $archive -Force
+Compress-Archive -Path "$stage/obs-plugins", "$stage/README.md", "$stage/LICENSE", "$stage/build-report.json" -DestinationPath $archive -Force
 Copy-Item -LiteralPath $dll -Destination (Join-Path $repo 'build/roadie-signal.dll') -Force
 Write-Host "Standalone DLL ready at $repo/build/roadie-signal.dll"
 Write-Host "Test package ready at $archive"
