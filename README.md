@@ -1,12 +1,12 @@
 # Roadie Signal native OBS dock
 
-Source version **0.1.8** targets the minimum
+Source version **0.1.10** targets the minimum
 **OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
 OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
 plugin must send state and the signed-in owner must enable sharing in Signal's gear.
 
-The [0.1.7 test package](releases/v0.1.7-test.1/README.md) includes a standalone
-[`roadie-signal.dll`](releases/v0.1.7-test.1/obs-plugins/64bit/roadie-signal.dll),
+The [0.1.10 test package](releases/v0.1.10-test.1/README.md) includes a standalone
+[`roadie-signal.dll`](releases/v0.1.10-test.1/obs-plugins/64bit/roadie-signal.dll),
 the ZIP and build provenance. The GitHub prerelease also provides the DLL as its
 own download. Roadie's matching persistent-login and local Stage changes require
 the Roadie server/web deployment; publishing this plugin does not deploy them.
@@ -25,7 +25,7 @@ The QCef cookie API requires a relative storage name, not an absolute Windows pa
 See [the diagnosis and validation record](docs/cookie-directory-startup.md).
 The September 30 host log still identifies the loaded plugin as **0.1.1**, so the
 replacement DLL had not taken effect on that machine. The current build displays its
-running version under **Tools → Roadie Signal 0.1.7 status…**, even if dock startup
+running version under **Tools → Roadie Signal 0.1.10 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
 The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
