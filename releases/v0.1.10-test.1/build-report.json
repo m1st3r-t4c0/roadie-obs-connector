@@ -1,0 +1,20 @@
+{
+  "version": "0.1.10",
+  "tag": "v0.1.10-test.1",
+  "obsVersion": "30.0.0",
+  "qtVersion": "6.5.3",
+  "compiler": "MSVC 19.44.35229.0",
+  "architecture": "x64",
+  "origin": "https://dashboard.roadie.gg",
+  "dllSha256": "379e98bd31b00bc26c7b9a658f1b8b089b17f2f9ba3b7c23cc01100a61ae450a",
+  "sourceCommit": "15b6423edef850aa00e7ac5c653dbd6fc11fbd61",
+  "sourceDirty": false,
+  "builtAt": "2026-10-04T17:32:32.9675196Z",
+  "dependencyLoadPassed": [
+    "30.0.0",
+    "32.2.1"
+  ],
+  "hostTested": false,
+  "roadieCommit": "38dd4e87",
+  "roadieProductionDeploymentVerified": false
+}
