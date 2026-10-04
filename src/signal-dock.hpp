@@ -25,9 +25,11 @@ public:
 
 private slots:
   void navigationChanged(const QString &url);
+  void titleChanged(const QString &title);
 
 private:
   void publish();
+  void runCommand(const QJsonObject &command);
   void publishCrashReports();
   void dispatch(const char *event, const char *marker, const QJsonObject &detail);
   void saveSelection();
@@ -43,6 +45,7 @@ private:
   quint64 sequence_ = 0;
   quint64 stateSequence_ = 0;
   quint64 healthSequence_ = 0;
+  QString lastCommandId_;
   QJsonArray crashReports_;
   bool crashReportsRead_ = false;
   int crashDeliveries_ = 0;

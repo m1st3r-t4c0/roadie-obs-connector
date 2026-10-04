@@ -265,6 +265,33 @@ Each report is capped at 64 KB. `C:\Users\<name>` paths are replaced with
 page sends them to Roadie only while its crash-report switch is on; Roadie
 dedupes by `sha256`. The plugin itself makes no network request.
 
+## 0.1.9 additions — scene switching from Roadie
+
+**`roadie:obs-state` gains `scenes` and `capabilities`.** `scenes` is OBS's scene names in OBS's
+order, at most 200; `capabilities` is `["set-scene"]`. Both additive.
+
+**The page can now ask the plugin to switch scene.** `browser-panel.hpp` gives the plugin no
+JavaScript-to-native call, only the `titleChanged` and `urlChanged` signals, so the trusted `/dock`
+page writes a command into `document.title`:
+
+```text
+roadie-obs-command:{"version":1,"id":"<1-64 of A-Z a-z 0-9 ->","action":"set-scene","scene":"BRB"}
+```
+
+The plugin reads it only while the page is trusted (exact origin and `/dock`), ignores a title
+without the prefix or over 4 KB, runs each `id` once (CEF may report one title twice, and the page
+holds the title until answered), and searches only `obs_frontend_get_scenes`, so a command can never
+select a source that is not a scene. It switches with `obs_frontend_set_current_scene` on the Qt
+thread and answers with **`roadie:obs-command-result`** (marker `roadieObsCommand`):
+
+```json
+{ "version": 1, "id": "...", "action": "set-scene", "ok": true }
+```
+
+or `"ok": false` with `"error": "no-such-scene"` / `"unknown-action"`. The page restores its title
+after the answer, or after four seconds without one. The plugin still makes no network request; the
+command reaches the page from Roadie over the page's own signed-in socket.
+
 ## Acceptance checks still required
 
 1. Compile against the minimum SDK and inspect exports/dependencies — passed; verify the staged build report before installing.

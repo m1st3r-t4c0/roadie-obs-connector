@@ -52,6 +52,9 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   // String-based Qt connection avoids linking to obs-browser's private metaobject
   // symbols. The SDK's actual QCefWidget type supplies the virtual browser methods.
   QObject::connect(browser_, SIGNAL(urlChanged(QString)), this, SLOT(navigationChanged(QString)));
+  // 0.1.9: the page's only way back to the plugin. browser-panel.hpp exposes no
+  // JS-to-native call, so a command rides the document title (see titleChanged).
+  QObject::connect(browser_, SIGNAL(titleChanged(QString)), this, SLOT(titleChanged(QString)));
   timer_.setInterval(100);
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
   stateTimer_.setInterval(5000);
@@ -143,6 +146,77 @@ void SignalDock::navigationChanged(const QString &url)
   }
 }
 
+static const QString commandPrefix = QStringLiteral("roadie-obs-command:");
+
+static bool validCommandId(const QString &id)
+{
+  if (id.isEmpty() || id.size() > 64)
+    return false;
+  for (const QChar c : id) {
+    if (!(c.isLetterOrNumber() && c.unicode() < 128) && c != QLatin1Char('-'))
+      return false;
+  }
+  return true;
+}
+
+void SignalDock::titleChanged(const QString &title)
+{
+  // Only the trusted /dock page may command OBS, and only with the exact prefix.
+  // Any other title (the page's own name, a redirect's) is ignored.
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !title.startsWith(commandPrefix))
+    return;
+  const QByteArray json = title.mid(commandPrefix.size()).toUtf8();
+  if (json.size() > 4096)
+    return;
+  QJsonParseError error{};
+  const QJsonDocument document = QJsonDocument::fromJson(json, &error);
+  if (error.error != QJsonParseError::NoError || !document.isObject())
+    return;
+  const QJsonObject command = document.object();
+  const QString id = command.value("id").toString();
+  // The page holds a command's title until the result arrives, and CEF may report
+  // one title more than once, so an id is run at most once.
+  if (command.value("version").toInt() != 1 || !validCommandId(id) || id == lastCommandId_)
+    return;
+  lastCommandId_ = id;
+  runCommand(command);
+}
+
+void SignalDock::runCommand(const QJsonObject &command)
+{
+  const QString id = command.value("id").toString();
+  const QString action = command.value("action").toString();
+  QJsonObject result{{"version", 1}, {"id", id}, {"action", action}};
+  if (action == QLatin1String("set-scene")) {
+    const QString wanted = command.value("scene").toString();
+    bool found = false;
+    if (!wanted.isEmpty() && wanted.size() <= 256) {
+      // Only OBS's own scene list is searched, so a command can never select a
+      // source that is not a scene.
+      obs_frontend_source_list scenes = {};
+      obs_frontend_get_scenes(&scenes);
+      for (size_t i = 0; i < scenes.sources.num; ++i) {
+        obs_source_t *scene = scenes.sources.array[i];
+        if (QString::fromUtf8(obs_source_get_name(scene)) == wanted) {
+          obs_frontend_set_current_scene(scene);
+          found = true;
+          break;
+        }
+      }
+      obs_frontend_source_list_free(&scenes);
+    }
+    result["ok"] = found;
+    if (!found)
+      result["error"] = QStringLiteral("no-such-scene");
+    else
+      blog(LOG_INFO, "[roadie-signal] Roadie switched the scene");
+  } else {
+    result["ok"] = false;
+    result["error"] = QStringLiteral("unknown-action");
+  }
+  dispatch("roadie:obs-command-result", "roadieObsCommand", result);
+}
+
 void SignalDock::publish()
 {
   if (!browser_ || !trustedPage_ || shutdownPrepared_)
@@ -179,6 +253,15 @@ void SignalDock::publishState()
   // Additive fields: receivers that predate them drop unknown keys.
   frame["pluginVersion"] = QString::fromLatin1(ROADIE_SIGNAL_VERSION);
   frame["obsVersion"] = QString::fromLatin1(obs_get_version_string());
+  // 0.1.9: the scene names Roadie may switch to, and what this build can be asked.
+  QJsonArray sceneNames;
+  obs_frontend_source_list scenes = {};
+  obs_frontend_get_scenes(&scenes);
+  for (size_t i = 0; i < scenes.sources.num && sceneNames.size() < 200; ++i)
+    sceneNames.append(QString::fromUtf8(obs_source_get_name(scenes.sources.array[i])));
+  obs_frontend_source_list_free(&scenes);
+  frame["scenes"] = sceneNames;
+  frame["capabilities"] = QJsonArray{QStringLiteral("set-scene")};
   dispatch("roadie:obs-state", "roadieObsState", frame);
   publishCrashReports();
 }
