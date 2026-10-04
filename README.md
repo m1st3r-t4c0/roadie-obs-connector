@@ -1,15 +1,20 @@
 # Roadie Signal native OBS dock
 
-Source version **0.1.10** targets the minimum
-**OBS 30.0.0 / Qt 6.5.3** SDK. No OBS update is required for the reported issue on
-OBS 32.0.4. Roadie's matching web receiver and server endpoint are live; the native
-plugin must send state and the signed-in owner must enable sharing in Signal's gear.
+## Current test release
 
-The [0.1.10 test package](releases/v0.1.10-test.1/README.md) includes a standalone
-[`roadie-signal.dll`](releases/v0.1.10-test.1/obs-plugins/64bit/roadie-signal.dll),
-the ZIP and build provenance. The GitHub prerelease also provides the DLL as its
-own download. Roadie's matching persistent-login and local Stage changes require
-the Roadie server/web deployment; publishing this plugin does not deploy them.
+Version **0.1.10** is a Windows x64 test build targeting OBS **30.0.0 or newer**
+and Qt **6.5.3 or newer**. The [0.1.10 package](releases/v0.1.10-test.1/README.md)
+contains the standalone DLL, ZIP, checksum and build report. It is unsigned.
+Dependency loading passed on OBS 30.0.0 and 32.2.1; full OBS host behavior,
+sign-in persistence, microphone behavior and shutdown still need testing.
+
+Close OBS before installing. Replace only `roadie-signal.dll` in OBS's
+`obs-plugins/64bit` directory, restart OBS, then check
+**Tools → Roadie Signal 0.1.10 status…** and **Docks → Roadie Signal**.
+Do not leave an older renamed Roadie DLL alongside it. Roadie's hosted dock and
+server changes deploy separately from this plugin.
+
+## Earlier releases
 
 The 0.1.4 change added a second local bridge for OBS streaming, recording and
 current-scene state. It publishes changed state within one second plus a five-second
@@ -40,7 +45,8 @@ make session-only cookies persistent. See
 [the shutdown diagnosis](docs/2026-09-30-shutdown-crash.md).
 The 0.1.5 crash report confirms the same browser-destruction path. The first
 [0.1.6 candidate](releases/v0.1.6-test.1/README.md) is **withdrawn; do not install
-or publish it**. Research reproduced an access violation using OBS 32.0.4's real
+or publish it**. Its DLL and ZIP were removed from the current tree. Research reproduced an
+access violation using OBS 32.0.4's real
 browser library when a queued paint ran during parent-dock destruction. Current
 source calls the public `closeBrowser()` method while the dock tree is still
 alive, then destroys the widgets normally. The isolated probe passes that order;
@@ -72,16 +78,24 @@ The callback updates a snapshot without UI, JavaScript, allocation or network wo
 No raw microphone audio is captured or uploaded. Only the signed-in `/dock` provider
 accepts measurements; navigation away detaches the tap.
 
-The web receiver validates frames and freshness but does not yet render the
-waveform or silence warning. The hosted web receiver remains unpublished, so
-current hosted pages will not consume the native measurements. Native source
-selection, microphone behavior, cookies and shutdown still require OBS host testing.
+The hosted web receiver validates frames and freshness but does not yet render the
+waveform or silence warning. Native source selection, microphone behavior,
+cookies and shutdown still require OBS host testing.
 
 ## Repository boundary
 
 This repo owns the native wrapper, compiler/SDK preparation and packaging.
 Roadie owns `/dock` and `apps/web/src/dock/native`. The version 1 event below is
 the contract between them; coordinate contract changes across both repos.
+
+## License
+
+This connector is licensed under **GPL-2.0-or-later**; see [LICENSE](LICENSE).
+It links to OBS and includes an upstream obs-websocket API header. That header's
+copyright and GPL notice remain in
+[third_party/obs-websocket-api.h](third_party/obs-websocket-api.h).
+The license applies to this repository's source and packaged plugin; Roadie's hosted
+web application is a separate project.
 
 ## Minimum compatibility policy
 
@@ -139,7 +153,7 @@ Outputs:
 
 - `stage/obs30.0.0/obs-plugins/64bit/roadie-signal.dll`
 - `stage/obs30.0.0/build-report.json` and DLL inspection report
-- `build/roadie-signal-0.1.6-obs30.0.0-minimum-windows-x64.zip`
+- `build/roadie-signal-0.1.10-obs30.0.0-minimum-windows-x64.zip`
 
 Build scripts do not install into OBS, upload, sign, publish or deploy anything.
 For manual testing, close OBS, replace only `roadie-signal.dll` in your installation's
@@ -310,13 +324,15 @@ Web tests prove contract/freshness handling using fixture measurements. They do
 not prove the native ABI, authentication, cookie persistence, callback lifetime
 or behavior in OBS. Native host verification remains required.
 
-Product scope: [Signal activity spec](https://github.com/m1st3r-t4c0/roadie/blob/main/docs/specs/signal-activity.md).
+The bridge contracts above describe this plugin’s integration with Roadie.
+The hosted dock and server are maintained separately.
 
 
-## 0.1.7 test release
+## Stage transition bridge
 
-The current source combines the pre-close shutdown fix with local Stage transition
-events. It attaches directly to the main program transition's start/video-stop
+Introduced in 0.1.7, the current source combines the pre-close shutdown fix
+with local Stage transition events. It attaches directly to the main program's
+transition start/video-stop
 signals, including private sources, and reattaches on output channel changes, then
 calls the obs-browser `emit_event` vendor endpoint via obs-websocket's in-process
 API. No localhost server setting, password or network connection is required.
@@ -342,5 +358,6 @@ available under `tests/browser-probe`.
 The web receiver exposes its last 50 callback-to-animation-frame samples and
 start-only p95 at `window.roadieObsTiming`. The target is under 100 ms for the
 first visual reaction. Actual OBS rendering performance and full-plugin restart
-behavior remain unverified. The 0.1.7 package is a prerelease for host validation;
-the old 0.1.6 package remains withdrawn and must not be used.
+behavior remain unverified. The 0.1.7 package was a prerelease for host
+validation. The old 0.1.6 candidate
+remains withdrawn and must not be used.
