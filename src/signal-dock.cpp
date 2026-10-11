@@ -5,12 +5,8 @@
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <util/platform.h>
-#include <QComboBox>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QJsonDocument>
 #include <QJsonArray>
-#include <QLabel>
 #include <QUrl>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -336,58 +332,4 @@ void SignalDock::dispatch(const char *event, const char *marker, const QJsonObje
                             "!=='1')return;window.dispatchEvent(new CustomEvent('" + event + "',{detail:" + payload +
                             "}));})()";
   browser_->executeJavaScript(script.toStdString());
-}
-
-static bool addAudioSource(void *param, obs_source_t *source)
-{
-  if (obs_source_get_output_flags(source) & OBS_SOURCE_AUDIO) {
-    auto *choices = static_cast<QComboBox *>(param);
-    choices->addItem(QString::fromUtf8(obs_source_get_name(source)),
-                     QString::fromUtf8(obs_source_get_uuid(source)));
-  }
-  return true;
-}
-
-void SignalDock::chooseMicrophone()
-{
-  QDialog dialog(this);
-  dialog.setWindowTitle("Roadie Signal microphone");
-  auto *layout = new QVBoxLayout(&dialog);
-  layout->addWidget(new QLabel("Choose the OBS source whose audio levels Signal can read.", &dialog));
-  auto *choices = new QComboBox(&dialog);
-  choices->addItem("None — microphone sharing off", "");
-  obs_enum_sources(addAudioSource, choices);
-  int selected = choices->findData(selectedUuid_);
-  if (selected < 0 && !selectedUuid_.isEmpty()) {
-    choices->addItem("Selected source unavailable", selectedUuid_);
-    selected = choices->count() - 1;
-  }
-  choices->setCurrentIndex(selected < 0 ? 0 : selected);
-  layout->addWidget(choices);
-  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  layout->addWidget(buttons);
-  if (dialog.exec() != QDialog::Accepted)
-    return;
-  selectedUuid_ = choices->currentData().toString();
-  saveSelection();
-  if (trustedPage_)
-    audio_.select(selectedUuid_);
-}
-
-void SignalDock::saveSelection()
-{
-  char *path = obs_module_config_path("settings.json");
-  if (!path)
-    return;
-  // Read, change, write: settings.json also holds the plugin's staging-dock switch.
-  obs_data_t *settings = obs_data_create_from_json_file(path);
-  if (!settings)
-    settings = obs_data_create();
-  obs_data_set_string(settings, "microphoneUuid", selectedUuid_.toUtf8().constData());
-  if (!obs_data_save_json_safe(settings, path, "tmp", "bak"))
-    blog(LOG_WARNING, "[roadie-signal] microphone selection could not be saved");
-  obs_data_release(settings);
-  bfree(path);
 }

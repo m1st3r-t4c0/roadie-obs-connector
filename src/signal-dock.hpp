@@ -21,8 +21,7 @@ public:
   ~SignalDock() override;
   bool initialized() const;
   void prepareForShutdown();
-  void chooseMicrophone();
-  // Re-reads the saved microphone, after another dock's chooser changed it.
+  // Re-reads the saved microphone, after the Roadie Signal dialog changed it.
   void reloadMicrophone();
   // Whether this server receives OBS data, and whether its scene commands are followed.
   void setRoles(bool sends, bool obeys);
@@ -38,7 +37,6 @@ private:
   void runCommand(const QJsonObject &command);
   void publishCrashReports();
   void dispatch(const char *event, const char *marker, const QJsonObject &detail);
-  void saveSelection();
   const QString origin_;
   QPointer<QCefWidget> browser_;
   std::unique_ptr<QCefCookieManager> cookieManager_;

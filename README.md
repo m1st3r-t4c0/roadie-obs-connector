@@ -2,17 +2,19 @@
 
 ## Current test release
 
-Version **0.1.11** is a Windows x64 test build targeting OBS **30.0.0 or newer**
-and Qt **6.5.3 or newer**. The [0.1.11 package](releases/v0.1.11-test.1/README.md)
+Version **0.1.12** is a Windows x64 test build targeting OBS **30.0.0 or newer**
+and Qt **6.5.3 or newer**. The [0.1.12 package](releases/v0.1.12-test.1/README.md)
 contains the standalone DLL, ZIP, checksum and build report. It is unsigned.
 Dependency loading passed on OBS 30.0.0 and 32.0.4; full OBS host behavior,
 sign-in persistence, microphone behavior and shutdown still need testing.
-0.1.11 adds **Tools → Roadie Signal servers…**: send OBS data to Production, Staging
-or both, and accept scene changes from Production, Staging or both.
+All settings live in one window, **Tools → Roadie Signal…**: the running version and dock
+status, the microphone, and (since 0.1.11) where OBS data goes and whose scene changes OBS
+follows: Production, Staging or both. From 0.1.12 the plugin also warns when another Roadie
+Signal DLL is loaded beside it, and names the file to delete.
 
 Close OBS before installing. Replace only `roadie-signal.dll` in OBS's
 `obs-plugins/64bit` directory, restart OBS, then check
-**Tools → Roadie Signal 0.1.11 status…** and **Docks → Roadie Signal**.
+**Tools → Roadie Signal…** and **Docks → Roadie Signal**.
 Do not leave an older renamed Roadie DLL alongside it. Roadie's hosted dock and
 server changes deploy separately from this plugin.
 
@@ -34,8 +36,8 @@ The QCef cookie API requires a relative storage name, not an absolute Windows pa
 See [the diagnosis and validation record](docs/cookie-directory-startup.md).
 The September 30 host log still identifies the loaded plugin as **0.1.1**, so the
 replacement DLL had not taken effect on that machine. The current build displays its
-running version under **Tools → Roadie Signal 0.1.11 status…**, even if dock startup
-fails. The status dialog also reports the dock result. If that Tools entry is absent,
+running version at the top of **Tools → Roadie Signal…**, even if dock startup
+fails. The same window also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
 The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
 OBS 32.0.4. Version 0.1.5 attempts to remove the browser dock before OBS clears
@@ -73,7 +75,7 @@ OBS 32.2.1 / Qt 6.11.1 and cannot load on 32.0.4. Both are historical test build
 
 The module registers **Roadie Signal** in OBS's **Docks** menu and opens the
 existing authenticated `/dock` web application. It is private workspace UI.
-**Tools → Roadie Signal microphone…** selects one OBS audio source by UUID; None
+**Microphone level from** in **Tools → Roadie Signal…** selects one OBS audio source by UUID; None
 is the default. Source rename preserves selection, and removal produces unavailable
 measurements. Selection persists in OBS's plugin runtime configuration.
 
@@ -314,7 +316,7 @@ command reaches the page from Roadie over the page's own signed-in socket.
 
 ## 0.1.11 additions — choose Production, Staging or both
 
-**Tools → Roadie Signal servers…** sets two choices, each Production, Staging, or Production and
+**Tools → Roadie Signal…** sets two choices, each Production, Staging, or Production and
 staging:
 
 - **Send OBS data to.** Which servers get `roadie:obs-state`, `roadie:obs-audio`,
@@ -336,6 +338,17 @@ offers nothing to switch. The dialog says so, and warns when staging may change 
 The staging origin is fixed at build time (`ROADIE_SIGNAL_STAGING_ORIGIN`, `-StagingOrigin`), the
 same as the main origin. It must differ from the main origin. An empty value builds a
 production-only plugin with no servers menu.
+
+## 0.1.12 additions — one settings window
+
+The Tools menu has one Roadie entry, **Roadie Signal…**. Its window shows the version, OBS
+and Qt versions, browser and dock status, and holds the microphone and server choices. It
+replaces the separate status, microphone and servers entries of 0.1.11.
+
+At startup the plugin lists every other loaded OBS module whose description starts with
+"Roadie Signal" or whose file name contains `roadie-signal`. If it finds one, it logs each
+path, shows a warning naming the files to delete, and repeats it in the settings window.
+Plugins before 0.1.12 do not check, so an older copy is reported only by a newer one.
 
 ## Acceptance checks still required
 

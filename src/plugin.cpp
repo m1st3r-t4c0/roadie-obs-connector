@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPointer>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <memory>
 #include <QVersionNumber>
@@ -44,9 +45,7 @@ Slot docks[] = {
 
 std::unique_ptr<QCef> browser;
 std::unique_ptr<SceneEvents> sceneEvents;
-QPointer<QAction> microphoneAction;
-QPointer<QAction> statusAction;
-QPointer<QAction> serversAction;
+QPointer<QAction> settingsAction;
 const char *browserStatus = "Dock startup has not run";
 int sendTo = Production;
 int acceptFrom = Production;
@@ -159,6 +158,67 @@ const char *describe(int choice)
   return choice == Both ? "Production and staging" : choice == Staging ? "Staging" : "Production";
 }
 
+QString savedMicrophone()
+{
+  char *path = obs_module_config_path("settings.json");
+  obs_data_t *settings = path ? obs_data_create_from_json_file(path) : nullptr;
+  bfree(path);
+  if (!settings)
+    return QString();
+  const QString uuid = QString::fromUtf8(obs_data_get_string(settings, "microphoneUuid"));
+  obs_data_release(settings);
+  return uuid;
+}
+
+void saveMicrophone(const QString &uuid)
+{
+  char *path = obs_module_config_path("settings.json");
+  if (!path)
+    return;
+  // Read, change, write: settings.json also holds the server choices.
+  obs_data_t *settings = obs_data_create_from_json_file(path);
+  if (!settings)
+    settings = obs_data_create();
+  obs_data_set_string(settings, "microphoneUuid", uuid.toUtf8().constData());
+  if (!obs_data_save_json_safe(settings, path, "tmp", "bak"))
+    blog(LOG_WARNING, "[roadie-signal] microphone selection could not be saved");
+  obs_data_release(settings);
+  bfree(path);
+}
+
+bool addAudioSource(void *param, obs_source_t *source)
+{
+  if (obs_source_get_output_flags(source) & OBS_SOURCE_AUDIO) {
+    auto *choices = static_cast<QComboBox *>(param);
+    choices->addItem(QString::fromUtf8(obs_source_get_name(source)),
+                     QString::fromUtf8(obs_source_get_uuid(source)));
+  }
+  return true;
+}
+
+// Other Roadie Signal DLLs OBS loaded beside this one, usually an older copy left
+// in the plugin folder under another name. Each adds its own Tools entries and
+// competes for the same dock, so the user is told which file to delete.
+QStringList otherRoadieModules()
+{
+  QStringList found;
+  obs_enum_modules(
+      [](void *param, obs_module_t *module) {
+        if (module == obs_current_module())
+          return;
+        const char *description = obs_get_module_description(module);
+        const char *file = obs_get_module_file_name(module);
+        const bool roadie = (description && QString::fromUtf8(description).startsWith("Roadie Signal")) ||
+                            (file && QString::fromUtf8(file).contains("roadie-signal", Qt::CaseInsensitive));
+        if (!roadie)
+          return;
+        const char *path = obs_get_module_binary_path(module);
+        static_cast<QStringList *>(param)->append(QString::fromUtf8(path ? path : file ? file : "unknown"));
+      },
+      &found);
+  return found;
+}
+
 QComboBox *serverChoice(QWidget *parent, int current)
 {
   auto *choices = new QComboBox(parent);
@@ -168,98 +228,130 @@ QComboBox *serverChoice(QWidget *parent, int current)
   return choices;
 }
 
-void chooseServers()
+// The plugin's one settings window: what is running, the microphone, and the servers.
+void openSettings()
 {
   QDialog dialog;
-  dialog.setWindowTitle("Roadie Signal servers");
+  dialog.setWindowTitle("Roadie Signal");
   auto *layout = new QVBoxLayout(&dialog);
-  layout->addWidget(new QLabel("Choose which Roadie servers this OBS talks to. Each server has its own dock "
-                               "and its own sign-in.",
-                               &dialog));
+
+  QString text = QString("Roadie Signal %1 · OBS %2 · Qt %3\nBrowser: %4\nProduction dock: %5")
+                     .arg(ROADIE_SIGNAL_VERSION, obs_get_version_string(), qVersion(), browserStatus,
+                          docks[0].status);
+  if (stagingBuilt())
+    text += QString("\nStaging dock: %1").arg(docks[1].status);
+  auto *status = new QLabel(text, &dialog);
+  status->setTextFormat(Qt::PlainText);
+  status->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  layout->addWidget(status);
+
+  const QStringList others = otherRoadieModules();
+  if (!others.isEmpty()) {
+    auto *duplicate = new QLabel(
+        QString("Another Roadie Signal plugin is also loaded. Close OBS and delete:\n%1").arg(others.join("\n")),
+        &dialog);
+    duplicate->setTextFormat(Qt::PlainText);
+    duplicate->setWordWrap(true);
+    duplicate->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    duplicate->setStyleSheet("color: #e5534b;");
+    layout->addWidget(duplicate);
+  }
+
   auto *form = new QFormLayout;
-  auto *send = serverChoice(&dialog, sendTo);
-  auto *accept = serverChoice(&dialog, acceptFrom);
-  form->addRow("Send OBS data to:", send);
-  form->addRow("Accept scene changes from:", accept);
+  auto *microphone = new QComboBox(&dialog);
+  microphone->addItem("None — microphone sharing off", "");
+  obs_enum_sources(addAudioSource, microphone);
+  const QString currentMicrophone = savedMicrophone();
+  int selected = microphone->findData(currentMicrophone);
+  if (selected < 0 && !currentMicrophone.isEmpty()) {
+    microphone->addItem("Selected source unavailable", currentMicrophone);
+    selected = microphone->count() - 1;
+  }
+  microphone->setCurrentIndex(selected < 0 ? 0 : selected);
+  form->addRow("Microphone level from:", microphone);
+
+  QComboBox *send = nullptr;
+  QComboBox *accept = nullptr;
+  if (stagingBuilt()) {
+    send = serverChoice(&dialog, sendTo);
+    accept = serverChoice(&dialog, acceptFrom);
+    form->addRow("Send OBS data to:", send);
+    form->addRow("Accept scene changes from:", accept);
+  }
   layout->addLayout(form);
+
   auto *hint = new QLabel(&dialog);
   hint->setWordWrap(true);
   const auto explain = [send, accept, hint] {
-    QString text = "OBS data is your scene, stream and recording state, microphone level, stream health "
-                   "and crash reports.";
-    const int s = send->currentData().toInt();
-    const int a = accept->currentData().toInt();
-    if (a & Staging)
-      text += "\n\nStaging will be able to change your live OBS scene.";
-    if ((a & ~s) != 0)
-      text += "\n\nA server that gets no OBS data cannot see your scene list, so Roadie there will not "
-              "offer scene changes.";
-    hint->setText(text);
+    QString help = "Roadie reads only the level of the microphone source, never its audio.";
+    if (send && accept) {
+      help += " OBS data is your scene, stream and recording state, microphone level, stream health and "
+              "crash reports. Each server has its own dock and its own sign-in.";
+      const int s = send->currentData().toInt();
+      const int a = accept->currentData().toInt();
+      if (a & Staging)
+        help += "\n\nStaging will be able to change your live OBS scene.";
+      if ((a & ~s) != 0)
+        help += "\n\nA server that gets no OBS data cannot see your scene list, so Roadie there will not "
+                "offer scene changes.";
+    }
+    hint->setText(help);
   };
-  QObject::connect(send, &QComboBox::currentIndexChanged, hint, explain);
-  QObject::connect(accept, &QComboBox::currentIndexChanged, hint, explain);
+  if (send && accept) {
+    QObject::connect(send, &QComboBox::currentIndexChanged, hint, explain);
+    QObject::connect(accept, &QComboBox::currentIndexChanged, hint, explain);
+  }
   explain();
   layout->addWidget(hint);
+
   auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   layout->addWidget(buttons);
   if (dialog.exec() != QDialog::Accepted)
     return;
-  sendTo = send->currentData().toInt();
-  acceptFrom = accept->currentData().toInt();
-  saveServers();
-  applyServers();
-  for (const Slot &slot : docks) {
-    if (((sendTo | acceptFrom) & slot.server) && !slot.dock)
-      QMessageBox::warning(nullptr, "Roadie Signal",
-                           QString("The %1 dock could not start: %2").arg(slot.title, slot.status));
+
+  const QString chosenMicrophone = microphone->currentData().toString();
+  if (chosenMicrophone != currentMicrophone) {
+    saveMicrophone(chosenMicrophone);
+    eachDock([](SignalDock *each) { each->reloadMicrophone(); });
+  }
+  if (send && accept) {
+    sendTo = send->currentData().toInt();
+    acceptFrom = accept->currentData().toInt();
+    saveServers();
+    if (!browser)
+      return; // The dialog already says why no dock runs.
+    applyServers();
+    for (const Slot &slot : docks) {
+      if (((sendTo | acceptFrom) & slot.server) && !slot.dock)
+        QMessageBox::warning(nullptr, "Roadie Signal",
+                             QString("The %1 dock could not start: %2").arg(slot.title, slot.status));
+    }
   }
 }
 
-void addMenuActions()
+void addMenuAction()
 {
-  if (!statusAction) {
-    statusAction = static_cast<QAction *>(
-        obs_frontend_add_tools_menu_qaction("Roadie Signal " ROADIE_SIGNAL_VERSION " status…"));
-    if (statusAction) {
-      QObject::connect(statusAction, &QAction::triggered, [] {
-        QMessageBox::information(
-            nullptr, "Roadie Signal status",
-            QString("Roadie Signal %1\nBrowser: %2\nProduction dock: %3\nStaging dock: %4\n"
-                    "Sends OBS data to: %5\nAccepts scene changes from: %6\nOBS: %7\nQt: %8")
-                .arg(ROADIE_SIGNAL_VERSION, browserStatus, docks[0].status, docks[1].status, describe(sendTo),
-                     describe(acceptFrom), obs_get_version_string(), qVersion()));
-      });
-    }
-  }
-  if (!browser)
+  // Added even when the dock fails to start, so the dialog can say why.
+  if (settingsAction)
     return;
-  if (!microphoneAction) {
-    microphoneAction = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Roadie Signal microphone…"));
-    if (microphoneAction) {
-      QObject::connect(microphoneAction, &QAction::triggered, [] {
-        // Every dock reads one saved selection; the first open dock runs the chooser.
-        SignalDock *chooser = nullptr;
-        eachDock([&chooser](SignalDock *each) {
-          if (!chooser)
-            chooser = each;
-        });
-        if (!chooser)
-          return;
-        chooser->chooseMicrophone();
-        eachDock([chooser](SignalDock *each) {
-          if (each != chooser)
-            each->reloadMicrophone();
-        });
-      });
-    }
-  }
-  if (!serversAction && stagingBuilt()) {
-    serversAction = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Roadie Signal servers…"));
-    if (serversAction)
-      QObject::connect(serversAction, &QAction::triggered, [] { chooseServers(); });
-  }
+  settingsAction = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction("Roadie Signal…"));
+  if (settingsAction)
+    QObject::connect(settingsAction, &QAction::triggered, [] { openSettings(); });
+}
+
+void warnAboutOtherCopies()
+{
+  const QStringList others = otherRoadieModules();
+  if (others.isEmpty())
+    return;
+  for (const QString &path : others)
+    blog(LOG_WARNING, "[roadie-signal] another Roadie Signal plugin is loaded: %s", path.toUtf8().constData());
+  QMessageBox::warning(nullptr, "Roadie Signal",
+                       QString("Another Roadie Signal plugin is loaded beside %1. Two copies compete for the same "
+                               "dock and add their own Tools entries.\n\nClose OBS and delete:\n%2")
+                           .arg(ROADIE_SIGNAL_VERSION, others.join("\n")));
 }
 
 void startDocks()
@@ -298,12 +390,8 @@ void stopDocks()
     return;
   stopping = true;
   sceneEvents.reset();
-  if (statusAction)
-    delete statusAction.data();
-  if (microphoneAction)
-    delete microphoneAction.data();
-  if (serversAction)
-    delete serversAction.data();
+  if (settingsAction)
+    delete settingsAction.data();
   for (Slot &slot : docks)
     stopSlot(slot);
   browser.reset();
@@ -313,8 +401,9 @@ void stopDocks()
 void frontendEvent(enum obs_frontend_event event, void *)
 {
   if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+    addMenuAction();
     startDocks();
-    addMenuActions();
+    warnAboutOtherCopies();
     sceneEvents = std::make_unique<SceneEvents>();
   }
   if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED && sceneEvents)
