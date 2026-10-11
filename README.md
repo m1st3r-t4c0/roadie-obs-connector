@@ -2,19 +2,23 @@
 
 ## Current test release
 
-Version **0.1.10** is a Windows x64 test build targeting OBS **30.0.0 or newer**
-and Qt **6.5.3 or newer**. The [0.1.10 package](releases/v0.1.10-test.1/README.md)
+Version **0.1.11** is a Windows x64 test build targeting OBS **30.0.0 or newer**
+and Qt **6.5.3 or newer**. The [0.1.11 package](releases/v0.1.11-test.1/README.md)
 contains the standalone DLL, ZIP, checksum and build report. It is unsigned.
-Dependency loading passed on OBS 30.0.0 and 32.2.1; full OBS host behavior,
+Dependency loading passed on OBS 30.0.0 and 32.0.4; full OBS host behavior,
 sign-in persistence, microphone behavior and shutdown still need testing.
+0.1.11 adds **Tools → Roadie Signal servers…**: send OBS data to Production, Staging
+or both, and accept scene changes from Production, Staging or both.
 
 Close OBS before installing. Replace only `roadie-signal.dll` in OBS's
 `obs-plugins/64bit` directory, restart OBS, then check
-**Tools → Roadie Signal 0.1.10 status…** and **Docks → Roadie Signal**.
+**Tools → Roadie Signal 0.1.11 status…** and **Docks → Roadie Signal**.
 Do not leave an older renamed Roadie DLL alongside it. Roadie's hosted dock and
 server changes deploy separately from this plugin.
 
 ## Earlier releases
+
+The [0.1.10 package](releases/v0.1.10-test.1/README.md) carried only a version label over 0.1.9.
 
 The 0.1.4 change added a second local bridge for OBS streaming, recording and
 current-scene state. It publishes changed state within one second plus a five-second
@@ -30,7 +34,7 @@ The QCef cookie API requires a relative storage name, not an absolute Windows pa
 See [the diagnosis and validation record](docs/cookie-directory-startup.md).
 The September 30 host log still identifies the loaded plugin as **0.1.1**, so the
 replacement DLL had not taken effect on that machine. The current build displays its
-running version under **Tools → Roadie Signal 0.1.10 status…**, even if dock startup
+running version under **Tools → Roadie Signal 0.1.11 status…**, even if dock startup
 fails. The status dialog also reports the dock result. If that Tools entry is absent,
 check the loaded DLL path rather than assuming the copied file is the one OBS uses.
 The 0.1.4 test prerelease is published, and its shutdown crash was reproduced on
