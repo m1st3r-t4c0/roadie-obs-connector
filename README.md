@@ -327,10 +327,11 @@ staging:
 
 Both default to Production, the behaviour before 0.1.11. The choices are saved in the plugin's
 `settings.json` (`sendTo`, `acceptFrom`: 1 production, 2 staging, 3 both) and apply at once. A server
-in neither choice has no dock. A server in either has its own dock, **Docks → Roadie Signal** or
-**Docks → Roadie Signal (Staging)** (`https://staging.roadie.gg/dock`), with its own trusted origin,
-its own sign-in (`roadie-signal-staging/browser-cookies` for staging), and its own session id and
-sequences. Every dock uses the one saved microphone selection.
+in neither choice has no page. A server in either has its own Roadie page (staging's is
+`https://staging.roadie.gg/dock`), with its own trusted origin, its own sign-in
+(`roadie-signal-staging/browser-cookies` for staging), and its own session id and sequences. In 0.1.11
+each page was a separate dock; since 0.1.12 both live in the one **Roadie Signal** dock. Every page
+uses the one saved microphone selection.
 
 A server that accepts scene changes but gets no OBS data cannot see the scene list, so Roadie there
 offers nothing to switch. The dialog says so, and warns when staging may change the live scene.
@@ -350,6 +351,12 @@ At startup the plugin lists every other loaded OBS module whose description star
 path, shows a warning naming the files to delete, and repeats it in the settings window.
 Plugins before 0.1.12 do not check, so an older copy is reported only by a newer one.
 
+**One dock for both servers.** When both Production and Staging are in use, the **Roadie Signal**
+dock shows a **Production / Staging** switch at the top; with one server, the dock is just that page.
+Both pages are stacked with `QStackedLayout::StackAll`, so the page behind stays a visible widget:
+its browser loads, stays signed in and keeps sending, and is only covered. Each page still has its
+own sign-in and its own **Share OBS state with Roadie** switch, so staging's is turned on once from
+its page. The separate **Roadie Signal (Staging)** dock of 0.1.11 is gone.
 ## Acceptance checks still required
 
 1. Compile against the minimum SDK and inspect exports/dependencies — passed; verify the staged build report before installing.

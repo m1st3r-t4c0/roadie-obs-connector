@@ -5,6 +5,10 @@
 #include <obs-frontend-api.h>
 #include <util/platform.h>
 #include <QAction>
+#include <QButtonGroup>
+#include <QHBoxLayout>
+#include <QStackedLayout>
+#include <QToolButton>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -27,21 +31,30 @@ namespace {
 // Which Roadie servers OBS talks to. Each is a bit, so "both" is the two OR'd.
 enum Server : int { Production = 1, Staging = 2, Both = Production | Staging };
 
-// One dock per server. A dock exists while its server either receives OBS data or
-// may command OBS; each has its own origin and its own sign-in.
+// One Roadie page per server, all inside the one Roadie Signal dock. A page exists while
+// its server either receives OBS data or may command OBS; each has its own origin and its
+// own sign-in. t4c0, 2026-10-11: "why wouldnt we have this all through one dock?"
 struct Slot {
   Server server;
-  const char *dockId;
   const char *title;
   const char *cookieStore;
   QPointer<SignalDock> dock;
   const char *status;
 };
 Slot docks[] = {
-    {Production, "roadie-signal", "Roadie Signal", "roadie-signal/browser-cookies", nullptr, "Off"},
-    {Staging, "roadie-signal-staging", "Roadie Signal (Staging)", "roadie-signal-staging/browser-cookies", nullptr,
-     "Off"},
+    {Production, "Production", "roadie-signal/browser-cookies", nullptr, "Off"},
+    {Staging, "Staging", "roadie-signal-staging/browser-cookies", nullptr, "Off"},
 };
+
+// The dock itself: a Production / Staging switch over the pages. The switch shows only
+// while two pages run. The pages are stacked with StackAll, so the one behind stays a
+// visible widget: its browser loads and keeps sending, it is just covered.
+constexpr const char *dockId = "roadie-signal";
+QPointer<QWidget> host;
+QPointer<QWidget> switcher;
+QPointer<QWidget> pagesHost;
+QPointer<QStackedLayout> pages;
+QPointer<QToolButton> pageButtons[2];
 
 std::unique_ptr<QCef> browser;
 std::unique_ptr<SceneEvents> sceneEvents;
@@ -98,29 +111,105 @@ template <typename Fn> void eachDock(Fn fn)
       fn(slot.dock.data());
 }
 
+void showPage(int index)
+{
+  if (!pages || !docks[index].dock)
+    return;
+  // StackAll raises the current page over the other without hiding it.
+  pages->setCurrentWidget(docks[index].dock);
+  if (pageButtons[index])
+    pageButtons[index]->setChecked(true);
+}
+
+// The switch appears only with two pages; with one, the dock is just that page.
+void refreshSwitcher()
+{
+  int running = 0;
+  for (int i = 0; i < 2; ++i) {
+    const bool live = !docks[i].dock.isNull();
+    running += live ? 1 : 0;
+    if (pageButtons[i])
+      pageButtons[i]->setVisible(live);
+  }
+  if (switcher)
+    switcher->setVisible(running > 1);
+  if (!pages)
+    return;
+  for (int i = 0; i < 2; ++i) {
+    if (docks[i].dock && pages->currentWidget() == docks[i].dock) {
+      showPage(i);
+      return;
+    }
+  }
+  for (int i = 0; i < 2; ++i) {
+    if (docks[i].dock) {
+      showPage(i);
+      return;
+    }
+  }
+}
+
+bool createHost()
+{
+  if (host)
+    return true;
+  host = new QWidget;
+  auto *layout = new QVBoxLayout(host);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  switcher = new QWidget(host);
+  auto *bar = new QHBoxLayout(switcher);
+  bar->setContentsMargins(6, 4, 6, 2);
+  bar->setSpacing(4);
+  auto *group = new QButtonGroup(switcher);
+  group->setExclusive(true);
+  for (int i = 0; i < 2; ++i) {
+    auto *button = new QToolButton(switcher);
+    button->setText(QString::fromUtf8(docks[i].title));
+    button->setCheckable(true);
+    button->setAutoRaise(true);
+    button->setToolTip(QString("Show the %1 Roadie page. Both pages keep running.").arg(docks[i].title));
+    group->addButton(button, i);
+    bar->addWidget(button);
+    pageButtons[i] = button;
+    QObject::connect(button, &QToolButton::clicked, [i] { showPage(i); });
+  }
+  bar->addStretch(1);
+  pagesHost = new QWidget(host);
+  pages = new QStackedLayout(pagesHost);
+  pages->setStackingMode(QStackedLayout::StackAll);
+  layout->addWidget(switcher);
+  layout->addWidget(pagesHost, 1);
+  switcher->setVisible(false);
+  if (!obs_frontend_add_dock_by_id(dockId, "Roadie Signal", host)) {
+    delete host.data();
+    browserStatus = "OBS rejected dock registration";
+    blog(LOG_WARNING, "[roadie-signal] dock registration failed");
+    return false;
+  }
+  blog(LOG_INFO, "[roadie-signal] Roadie Signal dock registered");
+  return true;
+}
+
 bool startSlot(Slot &slot)
 {
   if (slot.dock)
     return true;
-  if (!browser) {
-    slot.status = "Unavailable: the OBS browser did not start";
+  if (!browser || !createHost()) {
+    slot.status = "Unavailable: the dock did not start";
     return false;
   }
-  slot.dock = new SignalDock(browser.get(), originOf(slot.server), slot.cookieStore);
+  slot.dock = new SignalDock(browser.get(), originOf(slot.server), slot.cookieStore, pagesHost);
   if (!slot.dock->initialized()) {
     delete slot.dock.data();
-    slot.status = "Dock initialization failed; check the OBS log";
-    blog(LOG_WARNING, "[roadie-signal] %s dock initialization failed before registration", slot.dockId);
+    slot.status = "Page initialization failed; check the OBS log";
+    blog(LOG_WARNING, "[roadie-signal] %s page initialization failed", slot.title);
     return false;
   }
-  if (!obs_frontend_add_dock_by_id(slot.dockId, slot.title, slot.dock)) {
-    delete slot.dock.data();
-    slot.status = "OBS rejected dock registration";
-    blog(LOG_WARNING, "[roadie-signal] %s dock registration failed", slot.dockId);
-    return false;
-  }
-  slot.status = "Registered";
-  blog(LOG_INFO, "[roadie-signal] %s dock registered", slot.dockId);
+  pages->addWidget(slot.dock);
+  slot.status = "Running";
+  blog(LOG_INFO, "[roadie-signal] %s page started", slot.title);
+  refreshSwitcher();
   return true;
 }
 
@@ -128,14 +217,16 @@ void stopSlot(Slot &slot)
 {
   if (!slot.dock)
     return;
-  // Close CEF while the complete widget tree is alive, then unregister the dock.
-  // Starting CEF close from the dock destructor permits nested paint events to
+  // Close CEF while the complete widget tree is alive, then delete the page.
+  // Starting CEF close from the destructor permits nested paint events to
   // visit a partially destroyed Qt tree.
   slot.dock->prepareForShutdown();
-  obs_frontend_remove_dock(slot.dockId);
+  if (pages)
+    pages->removeWidget(slot.dock);
   if (slot.dock)
     delete slot.dock.data();
   slot.status = "Off";
+  refreshSwitcher();
 }
 
 // Opens the docks the choice needs, closes the rest, and sets each dock's roles.
@@ -235,11 +326,11 @@ void openSettings()
   dialog.setWindowTitle("Roadie Signal");
   auto *layout = new QVBoxLayout(&dialog);
 
-  QString text = QString("Roadie Signal %1 · OBS %2 · Qt %3\nBrowser: %4\nProduction dock: %5")
+  QString text = QString("Roadie Signal %1 · OBS %2 · Qt %3\nBrowser: %4\nProduction page: %5")
                      .arg(ROADIE_SIGNAL_VERSION, obs_get_version_string(), qVersion(), browserStatus,
                           docks[0].status);
   if (stagingBuilt())
-    text += QString("\nStaging dock: %1").arg(docks[1].status);
+    text += QString("\nStaging page: %1").arg(docks[1].status);
   auto *status = new QLabel(text, &dialog);
   status->setTextFormat(Qt::PlainText);
   status->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -286,7 +377,8 @@ void openSettings()
     QString help = "Roadie reads only the level of the microphone source, never its audio.";
     if (send && accept) {
       help += " OBS data is your scene, stream and recording state, microphone level, stream health and "
-              "crash reports. Each server has its own dock and its own sign-in.";
+              "crash reports. Each server gets its own page in the Roadie Signal dock, with its own "
+              "sign-in; a Production / Staging switch at the top picks which one you see.";
       const int s = send->currentData().toInt();
       const int a = accept->currentData().toInt();
       if (a & Staging)
@@ -326,7 +418,7 @@ void openSettings()
     for (const Slot &slot : docks) {
       if (((sendTo | acceptFrom) & slot.server) && !slot.dock)
         QMessageBox::warning(nullptr, "Roadie Signal",
-                             QString("The %1 dock could not start: %2").arg(slot.title, slot.status));
+                             QString("The %1 page could not start: %2").arg(slot.title, slot.status));
     }
   }
 }
@@ -392,8 +484,19 @@ void stopDocks()
   sceneEvents.reset();
   if (settingsAction)
     delete settingsAction.data();
+  // Every browser closes first, with the whole dock alive; then OBS lets go of the
+  // dock, and deleting it takes the closed pages with it.
+  for (Slot &slot : docks) {
+    if (slot.dock)
+      slot.dock->prepareForShutdown();
+  }
+  if (host) {
+    obs_frontend_remove_dock(dockId);
+    if (host)
+      delete host.data();
+  }
   for (Slot &slot : docks)
-    stopSlot(slot);
+    slot.status = "Off";
   browser.reset();
   stopping = false;
 }
