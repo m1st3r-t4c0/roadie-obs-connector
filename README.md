@@ -1,12 +1,13 @@
 # Roadie Signal native OBS dock
 
-## Current test release
+## Current release
 
-Version **0.1.12** is a Windows x64 test build targeting OBS **30.0.0 or newer**
-and Qt **6.5.3 or newer**. The [0.1.12 package](releases/v0.1.12-test.1/README.md)
+Version **0.2.0** is the first canonical release: tag `v0.2.0`, published as a full
+GitHub release rather than a test prerelease. It is a Windows x64 build targeting OBS
+**30.0.0 or newer** and Qt **6.5.3 or newer**. The [0.2.0 package](releases/v0.2.0/README.md)
 contains the standalone DLL, ZIP, checksum and build report. It is unsigned.
-Dependency loading passed on OBS 30.0.0 and 32.0.4; full OBS host behavior,
-sign-in persistence, microphone behavior and shutdown still need testing.
+Its source is 0.1.12's, unchanged apart from the version number. Dependency loading passed on
+OBS 30.0.0 and 32.0.4.
 All settings live in one window, **Tools → Roadie Signal…**: the running version and dock
 status, the microphone, and (since 0.1.11) where OBS data goes and whose scene changes OBS
 follows: Production, Staging or both. From 0.1.12 the plugin also warns when another Roadie
@@ -20,6 +21,8 @@ server changes deploy separately from this plugin.
 
 ## Earlier releases
 
+Releases before 0.2.0 are test prereleases tagged `vX.Y.Z-test.N`. The
+[0.1.12 test package](releases/v0.1.12-test.1/README.md) has the same source as 0.2.0.
 The [0.1.10 package](releases/v0.1.10-test.1/README.md) carried only a version label over 0.1.9.
 
 The 0.1.4 change added a second local bridge for OBS streaming, recording and
