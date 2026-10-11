@@ -19,15 +19,20 @@ name. If it finds one, it names the file to delete in a warning, in the OBS log,
 settings window. Two loaded copies each add their own Tools entries and compete for the same dock.
 Plugins before 0.1.12 do not check, so an older copy is reported only by this one.
 
-**One dock for both servers.** The separate **Roadie Signal (Staging)** dock of 0.1.11 is gone.
-When both Production and Staging are in use, the **Roadie Signal** dock shows a **Production /
-Staging** switch at the top; with one server, the dock is just that page. Both pages keep running
-whichever one is in front, so both servers get your scene. Each page has its own sign-in and its
-own **Share OBS state with Roadie** switch: sign in to staging and turn its switch on once, from
-the Staging page.
+**One page, set from the plugin menu.** The separate **Roadie Signal (Staging)** dock of 0.1.11
+is gone, and so are tabs. The **Roadie Signal** dock shows your production page. Turn Staging on
+under **Tools → Roadie Signal… → Send OBS data to** and a staging page runs out of sight behind
+it: it signs itself in with your Twitch login and shares OBS state by itself, so every scene change
+reaches both servers with nothing else to click. Your normal browser's sign-ins are not touched.
 
-(The tag was moved on 2026-10-11 to add the one-dock change; the first 0.1.12 build had a
-separate staging dock.)
+If Twitch ever asks you to approve Roadie on staging (a first-time approval), the settings window
+says so and offers **Show the Staging sign-in** for that one click.
+
+Self-sharing needs the matching Roadie dock (on staging since 2026-10-11, production after the next
+release); an older Roadie still waits for its gear's **Share OBS state with Roadie** switch.
+
+(The tag was moved twice on 2026-10-11, at t4c0's request; earlier 0.1.12 builds had a separate
+staging dock, then a Production / Staging switch.)
 
 ## Install
 
@@ -42,7 +47,7 @@ The ZIP has the same DLL, this guide, LICENSE, and the build report. The build i
 
 Built warning-free against OBS 30.0.0 / Qt 6.5.3 from a clean source tree. The DLL's
 imports resolved against OBS 30.0.0 and OBS 32.0.4. These are dependency checks, not an
-OBS host run; the settings window, the duplicate warning, the staging page's sign-in, the
-page behind the switch still sending, and closing OBS with both pages open still need testing
+OBS host run; the settings window, the duplicate warning, the staging page signing itself in, the
+hidden page still sending, and closing OBS with both pages open still need testing
 in OBS. `build-report.json` records the
 source commit and DLL hash.
