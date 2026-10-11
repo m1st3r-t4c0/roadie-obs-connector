@@ -95,6 +95,16 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, const char *cookieStore
 
 bool SignalDock::initialized() const { return !browser_.isNull(); }
 
+void SignalDock::setRoles(bool sends, bool obeys)
+{
+  const bool changed = sends != sends_ || obeys != obeys_;
+  sends_ = sends;
+  obeys_ = obeys;
+  // Tell the server at once: new capabilities, or the first state after sending starts.
+  if (changed && sends_)
+    publishState();
+}
+
 void SignalDock::reloadMicrophone()
 {
   selectedUuid_ = savedMicrophone();
@@ -198,7 +208,12 @@ void SignalDock::runCommand(const QJsonObject &command)
   const QString id = command.value("id").toString();
   const QString action = command.value("action").toString();
   QJsonObject result{{"version", 1}, {"id", id}, {"action", action}};
-  if (action == QLatin1String("set-scene")) {
+  if (!obeys_) {
+    // The user chose not to take commands from this server. Answer at once so the
+    // page does not wait out its timeout.
+    result["ok"] = false;
+    result["error"] = QStringLiteral("commands-off");
+  } else if (action == QLatin1String("set-scene")) {
     const QString wanted = command.value("scene").toString();
     bool found = false;
     if (!wanted.isEmpty() && wanted.size() <= 256) {
@@ -230,7 +245,7 @@ void SignalDock::runCommand(const QJsonObject &command)
 
 void SignalDock::publish()
 {
-  if (!browser_ || !trustedPage_ || shutdownPrepared_)
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !sends_)
     return;
   QJsonObject frame = audio_.reading();
   frame["version"] = 1;
@@ -247,7 +262,7 @@ void SignalDock::publish()
 
 void SignalDock::publishState()
 {
-  if (!browser_ || !trustedPage_ || shutdownPrepared_)
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !sends_)
     return;
   obs_source_t *sceneSource = obs_frontend_get_current_scene();
   const QString scene = sceneSource ? QString::fromUtf8(obs_source_get_name(sceneSource)) : QString();
@@ -272,14 +287,15 @@ void SignalDock::publishState()
     sceneNames.append(QString::fromUtf8(obs_source_get_name(scenes.sources.array[i])));
   obs_frontend_source_list_free(&scenes);
   frame["scenes"] = sceneNames;
-  frame["capabilities"] = QJsonArray{QStringLiteral("set-scene")};
+  // A server the user takes no commands from is not told it can switch scenes.
+  frame["capabilities"] = obeys_ ? QJsonArray{QStringLiteral("set-scene")} : QJsonArray{};
   dispatch("roadie:obs-state", "roadieObsState", frame);
   publishCrashReports();
 }
 
 void SignalDock::publishHealth()
 {
-  if (!browser_ || !trustedPage_ || shutdownPrepared_)
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !sends_)
     return;
   QJsonObject frame = sampleStreamHealth();
   frame["version"] = 1;
@@ -292,7 +308,7 @@ void SignalDock::publishCrashReports()
 {
   // Sent with the first three state heartbeats after each trusted page load, so
   // a page that mounts late still receives them. Roadie dedupes by sha256.
-  if (!browser_ || !trustedPage_ || shutdownPrepared_ || crashDeliveries_ >= 3)
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !sends_ || crashDeliveries_ >= 3)
     return;
   if (!crashReportsRead_) {
     crashReports_ = recentCrashReports();

@@ -24,6 +24,8 @@ public:
   void chooseMicrophone();
   // Re-reads the saved microphone, after another dock's chooser changed it.
   void reloadMicrophone();
+  // Whether this server receives OBS data, and whether its scene commands are followed.
+  void setRoles(bool sends, bool obeys);
   void publishState();
   void publishHealth();
 
@@ -55,5 +57,7 @@ private:
   bool crashReportsRead_ = false;
   int crashDeliveries_ = 0;
   bool trustedPage_ = false;
+  bool sends_ = true;
+  bool obeys_ = true;
   bool shutdownPrepared_ = false;
 };

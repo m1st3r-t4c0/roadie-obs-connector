@@ -308,22 +308,30 @@ or `"ok": false` with `"error": "no-such-scene"` / `"unknown-action"`. The page 
 after the answer, or after four seconds without one. The plugin still makes no network request; the
 command reaches the page from Roadie over the page's own signed-in socket.
 
-## 0.1.11 additions — a second dock for Roadie staging
+## 0.1.11 additions — choose Production, Staging or both
 
-**Tools → Roadie Signal: also report to staging** adds a second dock, **Docks → Roadie Signal
-(Staging)**, on `https://staging.roadie.gg/dock`. It is off by default and the switch is saved in
-the plugin's `settings.json` (`stagingDock`), so it comes back the next time OBS starts. Turning it
-off closes and removes the dock at once.
+**Tools → Roadie Signal servers…** sets two choices, each Production, Staging, or Production and
+staging:
 
-The staging dock is a full second copy of the dock. It has its own trusted origin, its own
-`roadie-signal-staging/browser-cookies` sign-in, and its own session id and sequences. It sends the
-same `roadie:obs-state`, `roadie:obs-audio`, `roadie:obs-health` and `roadie:obs-crash` frames, so
-every scene change reaches both servers. It also accepts `set-scene` from staging. **While the switch
-is on, staging can change the live OBS scene.** Both docks use the one saved microphone selection.
+- **Send OBS data to.** Which servers get `roadie:obs-state`, `roadie:obs-audio`,
+  `roadie:obs-health` and `roadie:obs-crash`.
+- **Accept scene changes from.** Which servers' `set-scene` commands OBS follows. Any other server
+  is answered `{"ok": false, "error": "commands-off"}` at once, and its `obs-state` carries empty
+  `capabilities`, so Roadie there offers no scene switching.
+
+Both default to Production, the behaviour before 0.1.11. The choices are saved in the plugin's
+`settings.json` (`sendTo`, `acceptFrom`: 1 production, 2 staging, 3 both) and apply at once. A server
+in neither choice has no dock. A server in either has its own dock, **Docks → Roadie Signal** or
+**Docks → Roadie Signal (Staging)** (`https://staging.roadie.gg/dock`), with its own trusted origin,
+its own sign-in (`roadie-signal-staging/browser-cookies` for staging), and its own session id and
+sequences. Every dock uses the one saved microphone selection.
+
+A server that accepts scene changes but gets no OBS data cannot see the scene list, so Roadie there
+offers nothing to switch. The dialog says so, and warns when staging may change the live scene.
 
 The staging origin is fixed at build time (`ROADIE_SIGNAL_STAGING_ORIGIN`, `-StagingOrigin`), the
-same as the main origin. It must differ from the main origin. An empty value builds without the
-staging dock or its menu entry.
+same as the main origin. It must differ from the main origin. An empty value builds a
+production-only plugin with no servers menu.
 
 ## Acceptance checks still required
 
