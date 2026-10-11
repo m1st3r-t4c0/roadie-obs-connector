@@ -15,11 +15,15 @@ struct QCefCookieManager;
 class SignalDock final : public QWidget {
   Q_OBJECT
 public:
-  explicit SignalDock(QCef *cef, QWidget *parent = nullptr);
+  // One dock per Roadie server. Each has its own origin and its own cookie store,
+  // so signing in to staging never touches the production sign-in.
+  SignalDock(QCef *cef, const QString &origin, const char *cookieStore, QWidget *parent = nullptr);
   ~SignalDock() override;
   bool initialized() const;
   void prepareForShutdown();
   void chooseMicrophone();
+  // Re-reads the saved microphone, after another dock's chooser changed it.
+  void reloadMicrophone();
   void publishState();
   void publishHealth();
 
@@ -33,6 +37,7 @@ private:
   void publishCrashReports();
   void dispatch(const char *event, const char *marker, const QJsonObject &detail);
   void saveSelection();
+  const QString origin_;
   QPointer<QCefWidget> browser_;
   std::unique_ptr<QCefCookieManager> cookieManager_;
   QTimer timer_;

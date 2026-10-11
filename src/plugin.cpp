@@ -18,12 +18,56 @@ MODULE_EXPORT const char *obs_module_description()
 
 namespace {
 constexpr const char *dockId = "roadie-signal";
+// The staging dock reports the same OBS state to the staging server, for testing
+// Roadie there. It exists only while the user has turned it on from the Tools menu.
+constexpr const char *stagingDockId = "roadie-signal-staging";
 std::unique_ptr<QCef> browser;
 std::unique_ptr<SceneEvents> sceneEvents;
 QPointer<SignalDock> dock;
+QPointer<SignalDock> stagingDock;
 QPointer<QAction> microphoneAction;
 QPointer<QAction> statusAction;
+QPointer<QAction> stagingAction;
 const char *dockStatus = "Dock startup has not run";
+const char *stagingStatus = "Off";
+
+QString stagingOrigin() { return QString::fromUtf8(ROADIE_SIGNAL_STAGING_ORIGIN); }
+
+bool stagingWanted()
+{
+  char *path = obs_module_config_path("settings.json");
+  obs_data_t *settings = path ? obs_data_create_from_json_file(path) : nullptr;
+  bfree(path);
+  if (!settings)
+    return false;
+  const bool wanted = obs_data_get_bool(settings, "stagingDock");
+  obs_data_release(settings);
+  return wanted;
+}
+
+void saveStagingWanted(bool wanted)
+{
+  char *path = obs_module_config_path("settings.json");
+  if (!path)
+    return;
+  // Read, change, write: settings.json also holds the microphone selection.
+  obs_data_t *settings = obs_data_create_from_json_file(path);
+  if (!settings)
+    settings = obs_data_create();
+  obs_data_set_bool(settings, "stagingDock", wanted);
+  if (!obs_data_save_json_safe(settings, path, "tmp", "bak"))
+    blog(LOG_WARNING, "[roadie-signal] staging dock setting could not be saved");
+  obs_data_release(settings);
+  bfree(path);
+}
+
+template <typename Fn> void eachDock(Fn fn)
+{
+  if (dock)
+    fn(dock.data());
+  if (stagingDock)
+    fn(stagingDock.data());
+}
 
 void addStatusAction()
 {
@@ -34,10 +78,74 @@ void addStatusAction()
   if (statusAction) {
     QObject::connect(statusAction, &QAction::triggered, [] {
       QMessageBox::information(nullptr, "Roadie Signal status",
-                               QString("Roadie Signal %1\nDock: %2\nOBS: %3\nQt: %4")
-                                   .arg(ROADIE_SIGNAL_VERSION, dockStatus, obs_get_version_string(), qVersion()));
+                               QString("Roadie Signal %1\nDock: %2\nStaging dock: %3\nOBS: %4\nQt: %5")
+                                   .arg(ROADIE_SIGNAL_VERSION, dockStatus, stagingStatus, obs_get_version_string(),
+                                        qVersion()));
     });
   }
+}
+
+bool startStagingDock()
+{
+  if (stagingDock)
+    return true;
+  if (!browser || !dock) {
+    stagingStatus = "Unavailable: the main dock did not start";
+    return false;
+  }
+  stagingDock = new SignalDock(browser.get(), stagingOrigin(), "roadie-signal-staging/browser-cookies");
+  if (!stagingDock->initialized()) {
+    delete stagingDock.data();
+    stagingStatus = "Dock initialization failed; check the OBS log";
+    blog(LOG_WARNING, "[roadie-signal] staging dock initialization failed before registration");
+    return false;
+  }
+  if (!obs_frontend_add_dock_by_id(stagingDockId, "Roadie Signal (Staging)", stagingDock)) {
+    delete stagingDock.data();
+    stagingStatus = "OBS rejected dock registration";
+    blog(LOG_WARNING, "[roadie-signal] staging dock registration failed");
+    return false;
+  }
+  stagingStatus = "On; see Docks > Roadie Signal (Staging)";
+  blog(LOG_INFO, "[roadie-signal] staging dock registered");
+  return true;
+}
+
+void stopStagingDock()
+{
+  if (!stagingDock)
+    return;
+  // Same order as the main dock: close CEF with the widget tree whole, then unregister.
+  stagingDock->prepareForShutdown();
+  obs_frontend_remove_dock(stagingDockId);
+  if (stagingDock)
+    delete stagingDock.data();
+  stagingStatus = "Off";
+  blog(LOG_INFO, "[roadie-signal] staging dock removed");
+}
+
+void addStagingAction()
+{
+  if (stagingAction || stagingOrigin().isEmpty())
+    return;
+  stagingAction = static_cast<QAction *>(
+      obs_frontend_add_tools_menu_qaction("Roadie Signal: also report to staging"));
+  if (!stagingAction)
+    return;
+  stagingAction->setCheckable(true);
+  stagingAction->setChecked(stagingWanted() && stagingDock);
+  // triggered fires only for the user's click, so the setChecked rollback below cannot re-enter.
+  QObject::connect(stagingAction, &QAction::triggered, [](bool on) {
+    if (on && !startStagingDock()) {
+      if (stagingAction)
+        stagingAction->setChecked(false);
+      QMessageBox::warning(nullptr, "Roadie Signal", QString("The staging dock could not start: %1").arg(stagingStatus));
+      return;
+    }
+    if (!on)
+      stopStagingDock();
+    saveStagingWanted(on);
+  });
 }
 
 void startDock()
@@ -60,7 +168,7 @@ void startDock()
     blog(LOG_WARNING, "[roadie-signal] browser initialization failed");
     return;
   }
-  dock = new SignalDock(browser.get());
+  dock = new SignalDock(browser.get(), QString::fromUtf8(ROADIE_SIGNAL_ORIGIN), "roadie-signal/browser-cookies");
   if (!dock->initialized()) {
     delete dock.data();
     browser.reset();
@@ -82,8 +190,14 @@ void startDock()
     QObject::connect(microphoneAction, &QAction::triggered, dock, [] {
       if (dock)
         dock->chooseMicrophone();
+      // Both docks read one saved selection; the staging dock follows the chooser.
+      if (stagingDock)
+        stagingDock->reloadMicrophone();
     });
   }
+  if (!stagingOrigin().isEmpty() && stagingWanted())
+    startStagingDock();
+  addStagingAction();
 }
 
 void stopDock()
@@ -99,6 +213,9 @@ void stopDock()
     delete statusAction.data();
   if (microphoneAction)
     delete microphoneAction.data();
+  if (stagingAction)
+    delete stagingAction.data();
+  stopStagingDock();
   if (dock) {
     dock->prepareForShutdown();
     obs_frontend_remove_dock(dockId);
@@ -128,15 +245,17 @@ void frontendEvent(enum obs_frontend_event event, void *)
   case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
   case OBS_FRONTEND_EVENT_RECORDING_PAUSED:
   case OBS_FRONTEND_EVENT_RECORDING_UNPAUSED:
-    if (dock) QMetaObject::invokeMethod(dock, [target = dock] {
-      if (target) target->publishState();
-    }, Qt::QueuedConnection);
+    eachDock([](SignalDock *each) {
+      QMetaObject::invokeMethod(each, [target = QPointer<SignalDock>(each)] {
+        if (target) target->publishState();
+      }, Qt::QueuedConnection);
+    });
     break;
   default: break;
   }
   // The output still exists while stopping: take the night's last health sample.
-  if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING && dock)
-    dock->publishHealth();
+  if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING)
+    eachDock([](SignalDock *each) { each->publishHealth(); });
   // Close CEF while the complete widget tree is alive, then unregister the dock.
   // Starting CEF close from the dock destructor permits nested paint events to
   // visit a partially destroyed Qt tree.

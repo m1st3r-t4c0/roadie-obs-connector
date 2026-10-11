@@ -308,6 +308,23 @@ or `"ok": false` with `"error": "no-such-scene"` / `"unknown-action"`. The page 
 after the answer, or after four seconds without one. The plugin still makes no network request; the
 command reaches the page from Roadie over the page's own signed-in socket.
 
+## 0.1.11 additions — a second dock for Roadie staging
+
+**Tools → Roadie Signal: also report to staging** adds a second dock, **Docks → Roadie Signal
+(Staging)**, on `https://staging.roadie.gg/dock`. It is off by default and the switch is saved in
+the plugin's `settings.json` (`stagingDock`), so it comes back the next time OBS starts. Turning it
+off closes and removes the dock at once.
+
+The staging dock is a full second copy of the dock. It has its own trusted origin, its own
+`roadie-signal-staging/browser-cookies` sign-in, and its own session id and sequences. It sends the
+same `roadie:obs-state`, `roadie:obs-audio`, `roadie:obs-health` and `roadie:obs-crash` frames, so
+every scene change reaches both servers. It also accepts `set-scene` from staging. **While the switch
+is on, staging can change the live OBS scene.** Both docks use the one saved microphone selection.
+
+The staging origin is fixed at build time (`ROADIE_SIGNAL_STAGING_ORIGIN`, `-StagingOrigin`), the
+same as the main origin. It must differ from the main origin. An empty value builds without the
+staging dock or its menu entry.
+
 ## Acceptance checks still required
 
 1. Compile against the minimum SDK and inspect exports/dependencies — passed; verify the staged build report before installing.

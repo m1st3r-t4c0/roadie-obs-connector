@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$ObsRoot = '',
-    [string]$Origin = 'https://dashboard.roadie.gg'
+    [string]$Origin = 'https://dashboard.roadie.gg',
+    [string]$StagingOrigin = 'https://staging.roadie.gg'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -67,7 +68,7 @@ $build = Join-Path $repo "build/plugin-obs$($lock.obsVersion)"
 Invoke-Checked $cmake @('-S', $repo, '-B', $build, '-G', 'Visual Studio 17 2022', '-A', 'x64',
     "-DCMAKE_PREFIX_PATH=$cache/qt6", "-DROADIE_OBS_SOURCE_DIR=$cache/obs-studio-$($lock.obsVersion)",
     "-DROADIE_OBS_HOST_DIR=$ObsRoot", "-DROADIE_OBS_IMPORT_DIR=$imports",
-    "-DOBS_BROWSER_PANEL_INCLUDE_DIR=$cache/browser-panel", "-DROADIE_SIGNAL_ORIGIN=$Origin")
+    "-DOBS_BROWSER_PANEL_INCLUDE_DIR=$cache/browser-panel", "-DROADIE_SIGNAL_ORIGIN=$Origin", "-DROADIE_SIGNAL_STAGING_ORIGIN=$StagingOrigin")
 Invoke-Checked $cmake @('--build', $build, '--config', 'Release', '--parallel')
 Invoke-Checked $cmake @('--install', $build, '--config', 'Release', '--prefix', "$repo/stage/obs$($lock.obsVersion)")
 $stage = Join-Path $repo "stage/obs$($lock.obsVersion)"
@@ -87,6 +88,7 @@ $report = [ordered]@{
     qtVersion = $lock.qt.version
     compiler = 'MSVC ' + (Get-Item (Get-Command cl.exe).Source).VersionInfo.FileVersion
     origin = $Origin
+    stagingOrigin = $StagingOrigin
     dllSha256 = (Get-FileHash $dll).Hash.ToLowerInvariant()
     hostTested = $false
     sourceCommit = (& git -C $repo rev-parse HEAD)

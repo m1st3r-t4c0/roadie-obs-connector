@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(roadie-signal VERSION 0.1.10 LANGUAGES CXX)
+project(roadie-signal VERSION 0.1.11 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -22,11 +22,21 @@ if(NOT ROADIE_SIGNAL_ORIGIN MATCHES "^https://[A-Za-z0-9.-]+(:[0-9]+)?$" AND
    NOT ROADIE_SIGNAL_ORIGIN MATCHES "^http://(localhost|127\\.0\\.0\\.1)(:[0-9]+)?$")
   message(FATAL_ERROR "Signal origin must be an HTTPS origin or a loopback HTTP development origin, without a path.")
 endif()
+# The optional second dock. Off until the user turns it on from the Tools menu; empty removes it.
+set(ROADIE_SIGNAL_STAGING_ORIGIN "https://staging.roadie.gg" CACHE STRING "Trusted staging Signal origin; empty builds without the staging dock")
+if(ROADIE_SIGNAL_STAGING_ORIGIN AND
+   NOT ROADIE_SIGNAL_STAGING_ORIGIN MATCHES "^https://[A-Za-z0-9.-]+(:[0-9]+)?$" AND
+   NOT ROADIE_SIGNAL_STAGING_ORIGIN MATCHES "^http://(localhost|127\\.0\\.0\\.1)(:[0-9]+)?$")
+  message(FATAL_ERROR "Staging Signal origin must be empty, an HTTPS origin or a loopback HTTP development origin, without a path.")
+endif()
+if(ROADIE_SIGNAL_STAGING_ORIGIN STREQUAL ROADIE_SIGNAL_ORIGIN)
+  message(FATAL_ERROR "Staging Signal origin must differ from the Signal origin.")
+endif()
 
 add_library(roadie-signal MODULE src/plugin.cpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp)
 target_include_directories(roadie-signal PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
 target_link_libraries(roadie-signal PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)
-target_compile_definitions(roadie-signal PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(roadie-signal PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_STAGING_ORIGIN="${ROADIE_SIGNAL_STAGING_ORIGIN}" ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
 if(MSVC)
   target_compile_options(roadie-signal PRIVATE /W4 /permissive- /utf-8)
 else()

@@ -15,10 +15,20 @@
 #include <QUuid>
 #include <QVBoxLayout>
 
-static QString origin() { return QString::fromUtf8(ROADIE_SIGNAL_ORIGIN); }
+static QString savedMicrophone()
+{
+  char *config = obs_module_config_path("settings.json");
+  obs_data_t *settings = config ? obs_data_create_from_json_file(config) : nullptr;
+  bfree(config);
+  if (!settings)
+    return QString();
+  const QString uuid = QString::fromUtf8(obs_data_get_string(settings, "microphoneUuid"));
+  obs_data_release(settings);
+  return uuid;
+}
 
-SignalDock::SignalDock(QCef *cef, QWidget *parent)
-    : QWidget(parent), sessionId_(QUuid::createUuid().toString(QUuid::WithoutBraces))
+SignalDock::SignalDock(QCef *cef, const QString &origin, const char *cookieStore, QWidget *parent)
+    : QWidget(parent), origin_(origin), sessionId_(QUuid::createUuid().toString(QUuid::WithoutBraces))
 {
   auto *layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
@@ -37,13 +47,13 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
   }
   // QCef prefixes this name with obs-browser's config path. Passing an absolute
   // path creates an invalid nested drive path on Windows and returns nullptr.
-  // Keep this namespace stable so sign-in cookies survive plugin upgrades.
-  cookieManager_.reset(cef->create_cookie_manager("roadie-signal/browser-cookies", true));
+  // Keep each namespace stable so sign-in cookies survive plugin upgrades.
+  cookieManager_.reset(cef->create_cookie_manager(cookieStore, true));
   if (!cookieManager_) {
     blog(LOG_WARNING, "[roadie-signal] browser cookie manager could not be created");
     return;
   }
-  browser_ = cef->create_widget(this, (origin() + "/dock").toStdString(), cookieManager_.get());
+  browser_ = cef->create_widget(this, (origin_ + "/dock").toStdString(), cookieManager_.get());
   if (!browser_) {
     blog(LOG_WARNING, "[roadie-signal] browser widget could not be created");
     return;
@@ -72,13 +82,7 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
     if (cookieManager_)
       cookieManager_->FlushStore();
   });
-  char *config = obs_module_config_path("settings.json");
-  obs_data_t *settings = config ? obs_data_create_from_json_file(config) : nullptr;
-  bfree(config);
-  if (settings) {
-    selectedUuid_ = QString::fromUtf8(obs_data_get_string(settings, "microphoneUuid"));
-    obs_data_release(settings);
-  }
+  selectedUuid_ = savedMicrophone();
   audio_.select(selectedUuid_);
   // A freshly constructed browser starts on our exact URL. Every injected script
   // also checks the actual frame origin/path, covering redirects before urlChanged.
@@ -90,6 +94,13 @@ SignalDock::SignalDock(QCef *cef, QWidget *parent)
 }
 
 bool SignalDock::initialized() const { return !browser_.isNull(); }
+
+void SignalDock::reloadMicrophone()
+{
+  selectedUuid_ = savedMicrophone();
+  if (trustedPage_)
+    audio_.select(selectedUuid_);
+}
 
 SignalDock::~SignalDock()
 {
@@ -134,7 +145,7 @@ void SignalDock::navigationChanged(const QString &url)
   if (shutdownPrepared_)
     return;
   const QUrl actual(url);
-  const QUrl expected(origin());
+  const QUrl expected(origin_);
   trustedPage_ = actual.scheme() == expected.scheme() && actual.host() == expected.host() &&
                  actual.port() == expected.port() && actual.path() == "/dock" &&
                  actual.userInfo().isEmpty();
@@ -225,7 +236,7 @@ void SignalDock::publish()
   frame["version"] = 1;
   frame["sessionId"] = sessionId_;
   frame["sequence"] = static_cast<double>(++sequence_);
-  const QByteArray originJson = QJsonDocument(QJsonArray{origin()}).toJson(QJsonDocument::Compact);
+  const QByteArray originJson = QJsonDocument(QJsonArray{origin_}).toJson(QJsonDocument::Compact);
   const QByteArray payload = QJsonDocument(frame).toJson(QJsonDocument::Compact);
   const QByteArray script =
       "(()=>{if(window.top!==window||location.origin!==" + originJson +
@@ -302,7 +313,7 @@ void SignalDock::dispatch(const char *event, const char *marker, const QJsonObje
 {
   // Every script re-checks the live frame's origin, exact /dock path and the
   // marker the signed-in provider sets; nothing reaches any other page.
-  const QByteArray originJson = QJsonDocument(QJsonArray{origin()}).toJson(QJsonDocument::Compact);
+  const QByteArray originJson = QJsonDocument(QJsonArray{origin_}).toJson(QJsonDocument::Compact);
   const QByteArray payload = QJsonDocument(detail).toJson(QJsonDocument::Compact);
   const QByteArray script = QByteArray("(()=>{if(window.top!==window||location.origin!==") + originJson +
                             "[0]||location.pathname!=='/dock'||document.documentElement.dataset." + marker +
@@ -354,7 +365,10 @@ void SignalDock::saveSelection()
   char *path = obs_module_config_path("settings.json");
   if (!path)
     return;
-  obs_data_t *settings = obs_data_create();
+  // Read, change, write: settings.json also holds the plugin's staging-dock switch.
+  obs_data_t *settings = obs_data_create_from_json_file(path);
+  if (!settings)
+    settings = obs_data_create();
   obs_data_set_string(settings, "microphoneUuid", selectedUuid_.toUtf8().constData());
   if (!obs_data_save_json_safe(settings, path, "tmp", "bak"))
     blog(LOG_WARNING, "[roadie-signal] microphone selection could not be saved");
