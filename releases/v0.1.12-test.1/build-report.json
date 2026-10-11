@@ -7,10 +7,10 @@
   "architecture": "x64",
   "origin": "https://dashboard.roadie.gg",
   "stagingOrigin": "https://staging.roadie.gg",
-  "dllSha256": "2c462e3d38684502d5667afff77f0b7e0148bc227f0bbf1df8fbd8875ae0585c",
-  "sourceCommit": "8b83b72c56d9e7a49350a026b11d3999ca8d99d7",
+  "dllSha256": "6bd8f0c52e8aaeeaa1c9ff05966b594e752233c3dc13f72c694d77f22e8ca7ae",
+  "sourceCommit": "248aba948d4c5e01c9ae3ee72a6c0b5b73447a05",
   "sourceDirty": false,
-  "builtAt": "2026-10-11T13:46:40.863392Z",
+  "builtAt": "2026-10-11T14:22:13.603556Z",
   "dependencyLoadPassed": [
     "30.0.0",
     "32.0.4"
