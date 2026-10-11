@@ -351,12 +351,25 @@ At startup the plugin lists every other loaded OBS module whose description star
 path, shows a warning naming the files to delete, and repeats it in the settings window.
 Plugins before 0.1.12 do not check, so an older copy is reported only by a newer one.
 
-**One dock for both servers.** When both Production and Staging are in use, the **Roadie Signal**
-dock shows a **Production / Staging** switch at the top; with one server, the dock is just that page.
-Both pages are stacked with `QStackedLayout::StackAll`, so the page behind stays a visible widget:
-its browser loads, stays signed in and keeps sending, and is only covered. Each page still has its
-own sign-in and its own **Share OBS state with Roadie** switch, so staging's is turned on once from
-its page. The separate **Roadie Signal (Staging)** dock of 0.1.11 is gone.
+**One page, set from the plugin menu.** The **Roadie Signal** dock shows one page: production's,
+or staging's when staging is the only server. With both on, the staging page runs out of sight
+behind it (stacked with `QStackedLayout::StackAll`, so it stays a visible widget whose browser
+loads and keeps sending). There are no tabs; **Tools → Roadie Signal…** is the only setting.
+
+- **One cookie store for every page** (`roadie-signal/browser-cookies`, production's, so its
+  sign-in survives). Roadie's session cookie is per site, so the servers never see each other's;
+  the Twitch login the pages share lets the hidden page sign in without a click.
+- **The hidden page signs itself in.** Every five seconds, at most one attempt a minute, the plugin
+  checks the trusted `/dock` page: if it shows Roadie's sign-in screen (no `roadieObsState`
+  marker), it follows the page's own Twitch login link.
+- **The plugin menu is the consent.** Every `roadie:obs-state` frame carries `share: true`, because
+  state reaches a page only when its server is chosen under **Send OBS data to**. Roadie (dock
+  build with `sharingFromPlugin`) then shares without the gear's switch, which shows as on and set
+  in OBS. An older Roadie ignores the mark and still waits for the switch.
+- **If Twitch wants a click** (the first approval of a Roadie server), the settings window lists
+  where the hidden page is and offers **Show the Staging sign-in**, which brings it forward under a
+  "Signing in…" bar; it goes back out of sight once it returns to Roadie, or on **Done**.
+
 ## Acceptance checks still required
 
 1. Compile against the minimum SDK and inspect exports/dependencies — passed; verify the staged build report before installing.

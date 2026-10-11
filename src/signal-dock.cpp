@@ -23,7 +23,7 @@ static QString savedMicrophone()
   return uuid;
 }
 
-SignalDock::SignalDock(QCef *cef, const QString &origin, const char *cookieStore, QWidget *parent)
+SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cookies, QWidget *parent)
     : QWidget(parent), origin_(origin), sessionId_(QUuid::createUuid().toString(QUuid::WithoutBraces))
 {
   auto *layout = new QVBoxLayout(this);
@@ -41,15 +41,12 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, const char *cookieStore
     blog(LOG_WARNING, "[roadie-signal] settings directory could not be created");
     return;
   }
-  // QCef prefixes this name with obs-browser's config path. Passing an absolute
-  // path creates an invalid nested drive path on Windows and returns nullptr.
-  // Keep each namespace stable so sign-in cookies survive plugin upgrades.
-  cookieManager_.reset(cef->create_cookie_manager(cookieStore, true));
+  cookieManager_ = cookies;
   if (!cookieManager_) {
-    blog(LOG_WARNING, "[roadie-signal] browser cookie manager could not be created");
+    blog(LOG_WARNING, "[roadie-signal] browser cookie manager is unavailable");
     return;
   }
-  browser_ = cef->create_widget(this, (origin_ + "/dock").toStdString(), cookieManager_.get());
+  browser_ = cef->create_widget(this, (origin_ + "/dock").toStdString(), cookieManager_);
   if (!browser_) {
     blog(LOG_WARNING, "[roadie-signal] browser widget could not be created");
     return;
@@ -61,6 +58,8 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, const char *cookieStore
   // 0.1.9: the page's only way back to the plugin. browser-panel.hpp exposes no
   // JS-to-native call, so a command rides the document title (see titleChanged).
   QObject::connect(browser_, SIGNAL(titleChanged(QString)), this, SLOT(titleChanged(QString)));
+  signInTimer_.setInterval(5000);
+  connect(&signInTimer_, &QTimer::timeout, this, [this] { signInIfSignedOut(); });
   timer_.setInterval(100);
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
   stateTimer_.setInterval(5000);
@@ -101,6 +100,33 @@ void SignalDock::setRoles(bool sends, bool obeys)
     publishState();
 }
 
+void SignalDock::setBackground(bool background)
+{
+  background_ = background;
+  if (background_ && !shutdownPrepared_)
+    signInTimer_.start();
+  else
+    signInTimer_.stop();
+}
+
+void SignalDock::signInIfSignedOut()
+{
+  if (!browser_ || !trustedPage_ || !background_ || shutdownPrepared_)
+    return;
+  // At most one attempt a minute, so a sign-in that keeps failing never loops.
+  if (lastSignIn_.isValid() && lastSignIn_.elapsed() < 60000)
+    return;
+  // Signed in, the dock page marks the document (roadieObsState); signed out it shows
+  // Roadie's sign-in screen, whose Twitch link is followed here. Only on the trusted page.
+  const QByteArray originJson = QJsonDocument(QJsonArray{origin_}).toJson(QJsonDocument::Compact);
+  const QByteArray script =
+      "(()=>{if(window.top!==window||location.origin!==" + originJson +
+      "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsState==='1')return;"
+      "const a=document.querySelector('a[href^=\"/auth/twitch/login\"]');if(a)location.href=a.href;})()";
+  lastSignIn_.start();
+  browser_->executeJavaScript(script.toStdString());
+}
+
 void SignalDock::reloadMicrophone()
 {
   selectedUuid_ = savedMicrophone();
@@ -130,6 +156,7 @@ void SignalDock::prepareForShutdown()
   stateTimer_.stop();
   healthTimer_.stop();
   cookieFlushTimer_.stop();
+  signInTimer_.stop();
   audio_.detach();
   if (cookieManager_)
     cookieManager_->FlushStore();
@@ -155,12 +182,14 @@ void SignalDock::navigationChanged(const QString &url)
   trustedPage_ = actual.scheme() == expected.scheme() && actual.host() == expected.host() &&
                  actual.port() == expected.port() && actual.path() == "/dock" &&
                  actual.userInfo().isEmpty();
+  lastHost_ = actual.host();
   if (!trustedPage_) {
     audio_.detach();
   } else {
     audio_.select(selectedUuid_);
     crashDeliveries_ = 0; // a reloaded page has not seen the crash reports yet
   }
+  emit pageChanged();
 }
 
 static const QString commandPrefix = QStringLiteral("roadie-obs-command:");
@@ -285,6 +314,9 @@ void SignalDock::publishState()
   frame["scenes"] = sceneNames;
   // A server the user takes no commands from is not told it can switch scenes.
   frame["capabilities"] = obeys_ ? QJsonArray{QStringLiteral("set-scene")} : QJsonArray{};
+  // State reaches a page only when the user chose its server under "Send OBS data to",
+  // and that choice is the consent: Roadie turns sharing on without a second switch.
+  frame["share"] = true;
   dispatch("roadie:obs-state", "roadieObsState", frame);
   publishCrashReports();
 }

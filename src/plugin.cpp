@@ -5,10 +5,9 @@
 #include <obs-frontend-api.h>
 #include <util/platform.h>
 #include <QAction>
-#include <QButtonGroup>
 #include <QHBoxLayout>
 #include <QStackedLayout>
-#include <QToolButton>
+#include <QPushButton>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -31,30 +30,37 @@ namespace {
 // Which Roadie servers OBS talks to. Each is a bit, so "both" is the two OR'd.
 enum Server : int { Production = 1, Staging = 2, Both = Production | Staging };
 
-// One Roadie page per server, all inside the one Roadie Signal dock. A page exists while
-// its server either receives OBS data or may command OBS; each has its own origin and its
-// own sign-in. t4c0, 2026-10-11: "why wouldnt we have this all through one dock?"
+// One Roadie page per server, in the one Roadie Signal dock. t4c0, 2026-10-11: "we dont need two
+// tabs ... when production and staging is on in the plugin menu should be all we need". The dock
+// shows one page: production's, or staging's when staging is the only server. Any other page runs
+// out of sight behind it, signs itself in, and shares because the plugin menu said so.
 struct Slot {
   Server server;
   const char *title;
-  const char *cookieStore;
   QPointer<SignalDock> dock;
   const char *status;
 };
 Slot docks[] = {
-    {Production, "Production", "roadie-signal/browser-cookies", nullptr, "Off"},
-    {Staging, "Staging", "roadie-signal-staging/browser-cookies", nullptr, "Off"},
+    {Production, "Production", nullptr, "Off"},
+    {Staging, "Staging", nullptr, "Off"},
 };
 
-// The dock itself: a Production / Staging switch over the pages. The switch shows only
-// while two pages run. The pages are stacked with StackAll, so the one behind stays a
-// visible widget: its browser loads and keeps sending, it is just covered.
 constexpr const char *dockId = "roadie-signal";
+// Production's store, kept so the existing sign-in survives. Every page shares it: Roadie's
+// session cookie is per site, so the servers never see each other's, and the Twitch login they
+// share is what lets a page out of sight sign itself in without a click.
+constexpr const char *cookieStore = "roadie-signal/browser-cookies";
+std::unique_ptr<QCefCookieManager> cookies;
+// The pages are stacked with StackAll, so the page behind stays a visible widget: its browser
+// loads and keeps sending, it is only covered.
 QPointer<QWidget> host;
-QPointer<QWidget> switcher;
 QPointer<QWidget> pagesHost;
 QPointer<QStackedLayout> pages;
-QPointer<QToolButton> pageButtons[2];
+// A page brought forward for a sign-in Twitch would not finish by itself (a first approval).
+QPointer<QWidget> signInBar;
+QPointer<QLabel> signInLabel;
+int signingIn = -1;
+bool signingInLeftDock = false;
 
 std::unique_ptr<QCef> browser;
 std::unique_ptr<SceneEvents> sceneEvents;
@@ -111,42 +117,72 @@ template <typename Fn> void eachDock(Fn fn)
       fn(slot.dock.data());
 }
 
-void showPage(int index)
+int frontIndex()
 {
-  if (!pages || !docks[index].dock)
-    return;
-  // StackAll raises the current page over the other without hiding it.
-  pages->setCurrentWidget(docks[index].dock);
-  if (pageButtons[index])
-    pageButtons[index]->setChecked(true);
+  if (signingIn >= 0 && docks[signingIn].dock)
+    return signingIn;
+  for (int i = 0; i < 2; ++i) {
+    if (docks[i].dock)
+      return i;
+  }
+  return -1;
 }
 
-// The switch appears only with two pages; with one, the dock is just that page.
-void refreshSwitcher()
+// Puts the right page in front and lets every other one run, and sign in, out of sight.
+void refreshFront()
 {
-  int running = 0;
+  if (signingIn >= 0 && !docks[signingIn].dock)
+    signingIn = -1;
+  const int front = frontIndex();
   for (int i = 0; i < 2; ++i) {
-    const bool live = !docks[i].dock.isNull();
-    running += live ? 1 : 0;
-    if (pageButtons[i])
-      pageButtons[i]->setVisible(live);
+    if (docks[i].dock)
+      docks[i].dock->setBackground(i != front);
   }
-  if (switcher)
-    switcher->setVisible(running > 1);
-  if (!pages)
+  if (pages && front >= 0)
+    pages->setCurrentWidget(docks[front].dock);
+  if (signInBar)
+    signInBar->setVisible(signingIn >= 0);
+  if (signingIn >= 0 && signInLabel)
+    signInLabel->setText(QString("Signing in to Roadie %1. This closes by itself once you are back on Roadie.")
+                             .arg(docks[signingIn].title));
+}
+
+void showSignIn(int index)
+{
+  if (!docks[index].dock)
     return;
-  for (int i = 0; i < 2; ++i) {
-    if (docks[i].dock && pages->currentWidget() == docks[i].dock) {
-      showPage(i);
-      return;
-    }
-  }
-  for (int i = 0; i < 2; ++i) {
-    if (docks[i].dock) {
-      showPage(i);
-      return;
-    }
-  }
+  signingIn = index;
+  signingInLeftDock = false;
+  refreshFront();
+}
+
+void finishSignIn()
+{
+  signingIn = -1;
+  signingInLeftDock = false;
+  refreshFront();
+}
+
+// A page brought forward goes back out of sight once it has left /dock for Twitch and returned.
+void pageChanged(int index)
+{
+  if (index != signingIn || !docks[index].dock)
+    return;
+  if (!docks[index].dock->onDock())
+    signingInLeftDock = true;
+  else if (signingInLeftDock)
+    finishSignIn();
+}
+
+QString pageStatus(int index)
+{
+  const Slot &slot = docks[index];
+  if (!slot.dock)
+    return QString::fromUtf8(slot.status);
+  const QString elsewhere = slot.dock->elsewhere();
+  if (!elsewhere.isEmpty())
+    return QString("Signing in (at %1)").arg(elsewhere);
+  return index == frontIndex() ? QString("Running, shown in the dock") : QString("Running out of sight");
 }
 
 bool createHost()
@@ -157,30 +193,21 @@ bool createHost()
   auto *layout = new QVBoxLayout(host);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
-  switcher = new QWidget(host);
-  auto *bar = new QHBoxLayout(switcher);
+  signInBar = new QWidget(host);
+  auto *bar = new QHBoxLayout(signInBar);
   bar->setContentsMargins(6, 4, 6, 2);
-  bar->setSpacing(4);
-  auto *group = new QButtonGroup(switcher);
-  group->setExclusive(true);
-  for (int i = 0; i < 2; ++i) {
-    auto *button = new QToolButton(switcher);
-    button->setText(QString::fromUtf8(docks[i].title));
-    button->setCheckable(true);
-    button->setAutoRaise(true);
-    button->setToolTip(QString("Show the %1 Roadie page. Both pages keep running.").arg(docks[i].title));
-    group->addButton(button, i);
-    bar->addWidget(button);
-    pageButtons[i] = button;
-    QObject::connect(button, &QToolButton::clicked, [i] { showPage(i); });
-  }
-  bar->addStretch(1);
+  signInLabel = new QLabel(signInBar);
+  signInLabel->setWordWrap(true);
+  auto *done = new QPushButton("Done", signInBar);
+  QObject::connect(done, &QPushButton::clicked, [] { finishSignIn(); });
+  bar->addWidget(signInLabel, 1);
+  bar->addWidget(done);
   pagesHost = new QWidget(host);
   pages = new QStackedLayout(pagesHost);
   pages->setStackingMode(QStackedLayout::StackAll);
-  layout->addWidget(switcher);
+  layout->addWidget(signInBar);
   layout->addWidget(pagesHost, 1);
-  switcher->setVisible(false);
+  signInBar->setVisible(false);
   if (!obs_frontend_add_dock_by_id(dockId, "Roadie Signal", host)) {
     delete host.data();
     browserStatus = "OBS rejected dock registration";
@@ -195,11 +222,11 @@ bool startSlot(Slot &slot)
 {
   if (slot.dock)
     return true;
-  if (!browser || !createHost()) {
+  if (!browser || !cookies || !createHost()) {
     slot.status = "Unavailable: the dock did not start";
     return false;
   }
-  slot.dock = new SignalDock(browser.get(), originOf(slot.server), slot.cookieStore, pagesHost);
+  slot.dock = new SignalDock(browser.get(), originOf(slot.server), cookies.get(), pagesHost);
   if (!slot.dock->initialized()) {
     delete slot.dock.data();
     slot.status = "Page initialization failed; check the OBS log";
@@ -207,9 +234,11 @@ bool startSlot(Slot &slot)
     return false;
   }
   pages->addWidget(slot.dock);
+  const int index = &slot == &docks[0] ? 0 : 1;
+  QObject::connect(slot.dock, &SignalDock::pageChanged, [index] { pageChanged(index); });
   slot.status = "Running";
   blog(LOG_INFO, "[roadie-signal] %s page started", slot.title);
-  refreshSwitcher();
+  refreshFront();
   return true;
 }
 
@@ -226,7 +255,7 @@ void stopSlot(Slot &slot)
   if (slot.dock)
     delete slot.dock.data();
   slot.status = "Off";
-  refreshSwitcher();
+  refreshFront();
 }
 
 // Opens the docks the choice needs, closes the rest, and sets each dock's roles.
@@ -326,15 +355,28 @@ void openSettings()
   dialog.setWindowTitle("Roadie Signal");
   auto *layout = new QVBoxLayout(&dialog);
 
-  QString text = QString("Roadie Signal %1 · OBS %2 · Qt %3\nBrowser: %4\nProduction page: %5")
+  QString text = QString("Roadie Signal %1 · OBS %2 · Qt %3\nBrowser: %4\nProduction: %5")
                      .arg(ROADIE_SIGNAL_VERSION, obs_get_version_string(), qVersion(), browserStatus,
-                          docks[0].status);
+                          pageStatus(0));
   if (stagingBuilt())
-    text += QString("\nStaging page: %1").arg(docks[1].status);
+    text += QString("\nStaging: %1").arg(pageStatus(1));
   auto *status = new QLabel(text, &dialog);
   status->setTextFormat(Qt::PlainText);
   status->setTextInteractionFlags(Qt::TextSelectableByMouse);
   layout->addWidget(status);
+  // A page out of sight signs itself in through Twitch. Twitch asks for a click only the first
+  // time an account approves a Roadie server; this brings that page forward for it.
+  for (int i = 0; i < 2; ++i) {
+    if (!docks[i].dock || i == frontIndex())
+      continue;
+    auto *signIn = new QPushButton(QString("Show the %1 sign-in").arg(docks[i].title), &dialog);
+    signIn->setToolTip("Only needed if this server never signs in by itself.");
+    QObject::connect(signIn, &QPushButton::clicked, &dialog, [i, &dialog] {
+      showSignIn(i);
+      dialog.reject();
+    });
+    layout->addWidget(signIn, 0, Qt::AlignLeft);
+  }
 
   const QStringList others = otherRoadieModules();
   if (!others.isEmpty()) {
@@ -377,8 +419,8 @@ void openSettings()
     QString help = "Roadie reads only the level of the microphone source, never its audio.";
     if (send && accept) {
       help += " OBS data is your scene, stream and recording state, microphone level, stream health and "
-              "crash reports. Each server gets its own page in the Roadie Signal dock, with its own "
-              "sign-in; a Production / Staging switch at the top picks which one you see.";
+              "crash reports. The dock shows Production; with both on, Staging runs out of sight, signs in "
+              "with your Twitch login and shares by itself.";
       const int s = send->currentData().toInt();
       const int a = accept->currentData().toInt();
       if (a & Staging)
@@ -466,6 +508,14 @@ void startDocks()
     blog(LOG_WARNING, "[roadie-signal] browser initialization failed");
     return;
   }
+  // QCef prefixes this name with obs-browser's config path. Passing an absolute
+  // path creates an invalid nested drive path on Windows and returns nullptr.
+  cookies.reset(browser->create_cookie_manager(cookieStore, true));
+  if (!cookies) {
+    browserStatus = "Browser cookie store could not be created";
+    blog(LOG_WARNING, "[roadie-signal] browser cookie manager could not be created");
+    return;
+  }
   browserStatus = "Ready";
   loadServers();
   applyServers();
@@ -497,6 +547,9 @@ void stopDocks()
   }
   for (Slot &slot : docks)
     slot.status = "Off";
+  if (cookies)
+    cookies->FlushStore();
+  cookies.reset();
   browser.reset();
   stopping = false;
 }
