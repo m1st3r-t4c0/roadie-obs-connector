@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QWidget>
 #include <QString>
+#include <QStringList>
 #include <memory>
 
 struct QCef;
@@ -25,7 +26,7 @@ public:
   void prepareForShutdown();
   // Re-reads the saved microphone, after the Roadie Signal dialog changed it.
   void reloadMicrophone();
-  // Whether this server receives OBS data, and whether its scene commands are followed.
+  // Whether this server receives OBS data, and whether its OBS commands are followed.
   void setRoles(bool sends, bool obeys);
   // A page nobody is looking at signs itself in: on Roadie's sign-in screen it follows
   // the Twitch login link by itself, at most once a minute.
@@ -46,6 +47,8 @@ private slots:
 
 private:
   void publish();
+  void commandPart(const QString &body);
+  void commandJson(const QByteArray &json, const QString &expectedId = QString());
   void runCommand(const QJsonObject &command);
   void publishCrashReports();
   void dispatch(const char *event, const char *marker, const QJsonObject &detail);
@@ -68,6 +71,9 @@ private:
   quint64 stateSequence_ = 0;
   quint64 healthSequence_ = 0;
   QString lastCommandId_;
+  QString partsId_;
+  int partsCount_ = 0;
+  QStringList parts_;
   QJsonArray crashReports_;
   bool crashReportsRead_ = false;
   int crashDeliveries_ = 0;

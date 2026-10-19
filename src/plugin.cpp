@@ -409,7 +409,7 @@ void openSettings()
     send = serverChoice(&dialog, sendTo);
     accept = serverChoice(&dialog, acceptFrom);
     form->addRow("Send OBS data to:", send);
-    form->addRow("Accept scene changes from:", accept);
+    form->addRow("Accept OBS changes from:", accept);
   }
   layout->addLayout(form);
 
@@ -424,10 +424,10 @@ void openSettings()
       const int s = send->currentData().toInt();
       const int a = accept->currentData().toInt();
       if (a & Staging)
-        help += "\n\nStaging will be able to change your live OBS scene.";
+        help += "\n\nStaging will be able to change your live OBS: scenes, sources, text, audio and filters.";
       if ((a & ~s) != 0)
-        help += "\n\nA server that gets no OBS data cannot see your scene list, so Roadie there will not "
-                "offer scene changes.";
+        help += "\n\nA server that gets no OBS data cannot see your scenes and sources, so Roadie there will not "
+                "offer OBS changes.";
     }
     hint->setText(help);
   };
@@ -519,7 +519,7 @@ void startDocks()
   browserStatus = "Ready";
   loadServers();
   applyServers();
-  blog(LOG_INFO, "[roadie-signal] sends OBS data to %s; accepts scene changes from %s", describe(sendTo),
+  blog(LOG_INFO, "[roadie-signal] sends OBS data to %s; accepts OBS changes from %s", describe(sendTo),
        describe(acceptFrom));
 }
 

@@ -1,5 +1,6 @@
 #include "signal-dock.hpp"
 #include "crash-reports.hpp"
+#include "obs-commands.hpp"
 #include "stream-health.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
@@ -205,15 +206,73 @@ static bool validCommandId(const QString &id)
   return true;
 }
 
+// 0.3.0: a command too long for one title (Chromium cuts a title at 4096 characters, and set-text
+// carries up to 4000) arrives in parts, each acknowledged before the page writes the next.
+static const QString partPrefix = QStringLiteral("roadie-obs-command-part:");
+static constexpr int maxParts = 16;
+static constexpr int maxCommandBytes = 32768;
+
 void SignalDock::titleChanged(const QString &title)
 {
-  // Only the trusted /dock page may command OBS, and only with the exact prefix.
+  // Only the trusted /dock page may command OBS, and only with an exact prefix.
   // Any other title (the page's own name, a redirect's) is ignored.
-  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !title.startsWith(commandPrefix))
+  if (!browser_ || !trustedPage_ || shutdownPrepared_)
+    return;
+  if (title.startsWith(partPrefix)) {
+    commandPart(title.mid(partPrefix.size()));
+    return;
+  }
+  if (!title.startsWith(commandPrefix))
     return;
   const QByteArray json = title.mid(commandPrefix.size()).toUtf8();
   if (json.size() > 4096)
     return;
+  commandJson(json);
+}
+
+void SignalDock::commandPart(const QString &body)
+{
+  QJsonParseError error{};
+  const QJsonDocument document = QJsonDocument::fromJson(body.toUtf8(), &error);
+  if (error.error != QJsonParseError::NoError || !document.isObject())
+    return;
+  const QJsonObject part = document.object();
+  const QString id = part.value("id").toString();
+  const int index = part.value("index").toInt(-1);
+  const int count = part.value("count").toInt(0);
+  if (part.value("version").toInt() != 1 || !validCommandId(id) || id == lastCommandId_ || count < 2 ||
+      count > maxParts || index < 0 || index >= count || !part.value("data").isString())
+    return;
+  if (index == 0 && partsId_ != id) {
+    partsId_ = id;
+    partsCount_ = count;
+    parts_.clear();
+  }
+  // Parts arrive in order, one at a time; a repeat of the last one is acknowledged again.
+  if (partsId_ != id || partsCount_ != count || index > parts_.size())
+    return;
+  if (index == parts_.size()) {
+    parts_.append(part.value("data").toString());
+    int total = 0;
+    for (const QString &each : parts_)
+      total += each.size();
+    if (total > maxCommandBytes) {
+      partsId_.clear();
+      parts_.clear();
+      return;
+    }
+  }
+  dispatch("roadie:obs-command-part", "roadieObsCommand", QJsonObject{{"version", 1}, {"id", id}, {"index", index}});
+  if (parts_.size() != partsCount_)
+    return;
+  const QByteArray json = parts_.join(QString()).toUtf8();
+  partsId_.clear();
+  parts_.clear();
+  commandJson(json, id);
+}
+
+void SignalDock::commandJson(const QByteArray &json, const QString &expectedId)
+{
   QJsonParseError error{};
   const QJsonDocument document = QJsonDocument::fromJson(json, &error);
   if (error.error != QJsonParseError::NoError || !document.isObject())
@@ -222,7 +281,8 @@ void SignalDock::titleChanged(const QString &title)
   const QString id = command.value("id").toString();
   // The page holds a command's title until the result arrives, and CEF may report
   // one title more than once, so an id is run at most once.
-  if (command.value("version").toInt() != 1 || !validCommandId(id) || id == lastCommandId_)
+  if (command.value("version").toInt() != 1 || !validCommandId(id) || id == lastCommandId_ ||
+      (!expectedId.isEmpty() && id != expectedId))
     return;
   lastCommandId_ = id;
   runCommand(command);
@@ -238,32 +298,15 @@ void SignalDock::runCommand(const QJsonObject &command)
     // page does not wait out its timeout.
     result["ok"] = false;
     result["error"] = QStringLiteral("commands-off");
-  } else if (action == QLatin1String("set-scene")) {
-    const QString wanted = command.value("scene").toString();
-    bool found = false;
-    if (!wanted.isEmpty() && wanted.size() <= 256) {
-      // Only OBS's own scene list is searched, so a command can never select a
-      // source that is not a scene.
-      obs_frontend_source_list scenes = {};
-      obs_frontend_get_scenes(&scenes);
-      for (size_t i = 0; i < scenes.sources.num; ++i) {
-        obs_source_t *scene = scenes.sources.array[i];
-        if (QString::fromUtf8(obs_source_get_name(scene)) == wanted) {
-          obs_frontend_set_current_scene(scene);
-          found = true;
-          break;
-        }
-      }
-      obs_frontend_source_list_free(&scenes);
-    }
-    result["ok"] = found;
-    if (!found)
-      result["error"] = QStringLiteral("no-such-scene");
-    else
-      blog(LOG_INFO, "[roadie-signal] Roadie switched the scene");
   } else {
-    result["ok"] = false;
-    result["error"] = QStringLiteral("unknown-action");
+    // Scenes are searched only in OBS's own scene list, so set-scene can never select a source
+    // that is not a scene; every other command reads its change back (obs-commands.cpp).
+    const QJsonObject outcome = runObsCommand(command);
+    result["ok"] = outcome.value("ok");
+    if (outcome.contains("error"))
+      result["error"] = outcome.value("error");
+    if (outcome.value("ok").toBool())
+      blog(LOG_INFO, "[roadie-signal] Roadie ran %s", action.toUtf8().constData());
   }
   dispatch("roadie:obs-command-result", "roadieObsCommand", result);
 }
@@ -312,8 +355,12 @@ void SignalDock::publishState()
     sceneNames.append(QString::fromUtf8(obs_source_get_name(scenes.sources.array[i])));
   obs_frontend_source_list_free(&scenes);
   frame["scenes"] = sceneNames;
-  // A server the user takes no commands from is not told it can switch scenes.
-  frame["capabilities"] = obeys_ ? QJsonArray{QStringLiteral("set-scene")} : QJsonArray{};
+  // A server the user takes no commands from is not told it can command OBS.
+  frame["capabilities"] = obeys_ ? obsCommandCapabilities() : QJsonArray{};
+  // 0.3.0: the sources and filters Roadie's OBS steps pick from.
+  const QJsonObject inventory = obsInventory();
+  frame["sources"] = inventory.value("sources");
+  frame["filters"] = inventory.value("filters");
   // State reaches a page only when the user chose its server under "Send OBS data to",
   // and that choice is the consent: Roadie turns sharing on without a second switch.
   frame["share"] = true;

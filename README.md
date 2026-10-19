@@ -317,6 +317,47 @@ or `"ok": false` with `"error": "no-such-scene"` / `"unknown-action"`. The page 
 after the answer, or after four seconds without one. The plugin still makes no network request; the
 command reaches the page from Roadie over the page's own signed-in socket.
 
+## 0.3.0 additions — every Roadie OBS action
+
+Roadie's automation can set a text source, show or hide a source, mute or unmute an input, and turn
+a filter on or off through the plugin, so a channel needs no bot connected to OBS for them (roadie
+`docs/specs/obs-plugin.md` §19).
+
+**New commands**, on the same title channel and with the same trust checks as `set-scene`:
+
+```text
+{"action":"set-source-visibility","scene":"Gameplay","source":"Cam","visible":false}
+{"action":"set-text","source":"Latest follower","text":"Thanks, nacho"}
+{"action":"set-mute","input":"Mic/Aux","muted":true}
+{"action":"set-filter","source":"Cam","filter":"Blur","enabled":true}
+```
+
+Each runs on the Qt thread, changes OBS, and **reads the change back before it answers**, so
+`"ok": true` means OBS holds the new value. A source in a group inside the scene is found too
+(`obs_scene_find_source_recursive`). `set-text` changes only a GDI+ or FreeType text source, and
+refuses one set to read from a file, since that text would never show. Errors: `no-such-scene`,
+`no-such-source`, `no-such-filter`, `not-a-text-source`, `text-from-file`, `not-an-audio-input`,
+`not-applied`, `bad-command`, `unknown-action`, `commands-off`.
+
+**Long commands come in parts.** Chromium cuts a document title at 4096 characters, and a text
+command carries up to 4000. The page then writes `roadie-obs-command-part:` titles:
+
+```text
+roadie-obs-command-part:{"version":1,"id":"...","index":0,"count":3,"data":"<a slice of the command JSON>"}
+```
+
+The plugin acknowledges each part with **`roadie:obs-command-part`** (`{"version":1,"id","index"}`,
+marker `roadieObsCommand`), and the page writes the next only after that acknowledgement. Parts arrive
+in order; at most 16, 32 KB in all. The joined JSON is then checked and run like a one-title command.
+
+**`roadie:obs-state` gains `sources` and `filters`**, the names Roadie's OBS steps pick from:
+`sources` is `[{"name","kind","scenes":[...]}]` (OBS's input id as `kind`, empty for a scene or
+group, at most 400) and `filters` is `[{"source","filter"}]` (at most 400). `capabilities` lists all
+five commands. All additive.
+
+The **Tools → Roadie Signal…** choice is now labelled **Accept OBS changes from**; it governs every
+command, not only scene switches. The saved setting (`acceptFrom`) is unchanged.
+
 ## 0.1.11 additions — choose Production, Staging or both
 
 **Tools → Roadie Signal…** sets two choices, each Production, Staging, or Production and
