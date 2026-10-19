@@ -1,0 +1,3 @@
+589a590fc7f54ff63cc7d3e5f2e528655f806e11829bb52a446de0df7efc469d  roadie-signal.dll
+09aaa736483981b6b310ca7b406a18d282fb7ae9565d86717ca428979b5e724c  roadie-signal-0.3.0-obs30.0.0-windows-x64.zip
+0287bd3a53b8e5d696a7a94eaee163130f5df3bb5c5d4618b354a542d1e97cb8  build-report.json
