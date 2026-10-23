@@ -358,6 +358,22 @@ five commands. All additive.
 The **Tools → Roadie Signal…** choice is now labelled **Accept OBS changes from**; it governs every
 command, not only scene switches. The saved setting (`acceptFrom`) is unchanged.
 
+## 0.3.1 additions — OBS's source numbers, for the Firebot import
+
+A Firebot effect often names an OBS source by its number in a scene alone. Roadie's Firebot import
+finds the name from the plugin, so a channel needs no Firebot connector for it (roadie
+`docs/specs/obs-plugin.md` §20).
+
+Each entry in `roadie:obs-state`'s `sources` may now carry:
+
+- **`items`**: `[{"scene","id"}]`, one per place the source sits. `id` is OBS's own scene item
+  number (`obs_sceneitem_get_id`), and `scene` is the scene or group that number belongs to. At most
+  200 per source.
+- **`durationMs`**: a media source's length, when OBS has its file open. It is left out when OBS
+  does not know it, such as a source set to _Close file when inactive_ that is hidden.
+
+Both are additive. A Roadie server that does not read them ignores them.
+
 ## 0.1.11 additions — choose Production, Staging or both
 
 **Tools → Roadie Signal…** sets two choices, each Production, Staging, or Production and

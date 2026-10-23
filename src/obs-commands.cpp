@@ -156,6 +156,8 @@ struct Inventory {
   QVector<QString> order;
   QHash<QString, QString> kinds;
   QHash<QString, QStringList> scenes;
+  // OBS's own number for each place a source sits, by the scene or group holding it (0.3.1).
+  QHash<QString, QJsonArray> items;
 };
 
 void note(Inventory &inv, obs_source_t *source, const QString &scene)
@@ -179,15 +181,27 @@ void note(Inventory &inv, obs_source_t *source, const QString &scene)
 struct Walk {
   Inventory *inv;
   QString scene;
+  // The scene or group the items being walked sit in: what a Firebot effect names with a number.
+  QString holder;
 };
 
 bool walkItem(obs_scene_t *, obs_sceneitem_t *item, void *param)
 {
   auto *walk = static_cast<Walk *>(param);
-  note(*walk->inv, obs_sceneitem_get_source(item), walk->scene);
-  // A group's members belong to the scene the group is in, as the visibility command finds them.
-  if (obs_sceneitem_is_group(item))
-    obs_sceneitem_group_enum_items(item, walkItem, param);
+  obs_source_t *source = obs_sceneitem_get_source(item);
+  note(*walk->inv, source, walk->scene);
+  const QString name = QString::fromUtf8(obs_source_get_name(source));
+  if (walk->inv->kinds.contains(name) && validName(walk->holder)) {
+    QJsonArray &at = walk->inv->items[name];
+    if (at.size() < maxScenesPerSource)
+      at.append(QJsonObject{{"scene", walk->holder}, {"id", static_cast<qint64>(obs_sceneitem_get_id(item))}});
+  }
+  // A group's members belong to the scene the group is in, as the visibility command finds them;
+  // their numbers are the group's own.
+  if (obs_sceneitem_is_group(item)) {
+    Walk inner{walk->inv, walk->scene, name};
+    obs_sceneitem_group_enum_items(item, walkItem, &inner);
+  }
   return true;
 }
 } // namespace
@@ -221,7 +235,8 @@ QJsonObject obsInventory()
   obs_frontend_get_scenes(&scenes);
   for (size_t i = 0; i < scenes.sources.num; ++i) {
     obs_source_t *sceneSource = scenes.sources.array[i];
-    Walk walk{&inv, QString::fromUtf8(obs_source_get_name(sceneSource))};
+    const QString sceneName = QString::fromUtf8(obs_source_get_name(sceneSource));
+    Walk walk{&inv, sceneName, sceneName};
     if (obs_scene_t *scene = obs_scene_from_source(sceneSource))
       obs_scene_enum_items(scene, walkItem, &walk);
   }
@@ -256,16 +271,25 @@ QJsonObject obsInventory()
     filtered.append(QString::fromUtf8(obs_source_get_name(scenes.sources.array[i])));
   }
   for (const QString &name : inv.order) {
-    sources.append(QJsonObject{{"name", name},
-                               {"kind", inv.kinds.value(name)},
-                               {"scenes", QJsonArray::fromStringList(inv.scenes.value(name))}});
-    if (filtered.contains(name))
-      continue;
+    QJsonObject entry{{"name", name},
+                      {"kind", inv.kinds.value(name)},
+                      {"scenes", QJsonArray::fromStringList(inv.scenes.value(name))}};
+    if (inv.items.contains(name))
+      entry["items"] = inv.items.value(name);
     obs_source_t *source = obs_get_source_by_name(name.toUtf8().constData());
     if (source) {
-      filtersOf(source);
+      // A media source's length, when OBS has the file open (0.3.1): an imported video hides itself
+      // once it has played. Unknown (0 or less) is left out.
+      if (obs_source_get_output_flags(source) & OBS_SOURCE_CONTROLLABLE_MEDIA) {
+        const int64_t ms = obs_source_media_get_duration(source);
+        if (ms > 0)
+          entry["durationMs"] = static_cast<qint64>(ms);
+      }
+      if (!filtered.contains(name))
+        filtersOf(source);
       obs_source_release(source);
     }
+    sources.append(entry);
   }
   obs_frontend_source_list_free(&scenes);
   return QJsonObject{{"sources", sources}, {"filters", filters}};
