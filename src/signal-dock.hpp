@@ -14,6 +14,13 @@ struct QCef;
 class QCefWidget;
 struct QCefCookieManager;
 
+// macOS quit-crash fix (v2): while OBS is closing, while a modal dialog is open (including
+// native macOS alerts), or from inside a nested event loop, the dock page may already be
+// gone. Script delivery to the pages pauses then.
+void roadieSetScriptsPaused(bool paused);
+// True when it is safe to call into the dock pages right now.
+bool roadieScriptsSafe();
+
 class SignalDock final : public QWidget {
   Q_OBJECT
 public:

@@ -91,6 +91,12 @@ The hosted web receiver validates frames and freshness but does not yet render t
 waveform or silence warning. Native source selection, microphone behavior,
 cookies and shutdown still require OBS host testing.
 
+## Credits
+
+- **CtrlGremlin** ported the plugin to macOS: the CMake macOS target and `.plugin` bundle, the
+  Mac build script, the Mac installer, and the diagnosis and fix of three crashes on quitting
+  OBS on a Mac (see 0.3.3 below). The first Mac release is built from that work.
+
 ## Repository boundary
 
 This repo owns the native wrapper, compiler/SDK preparation and packaging.
@@ -121,7 +127,8 @@ API version 3. It no longer requires an exact OBS release. Compiling and linking
 against the minimum distribution avoids importing newer OBS/Qt symbols. OBS owns
 its Qt/browser DLLs; this package contains no substitute OBS or Qt runtime.
 Future versions or different browser builds still need compatibility verification.
-No supported-version claim extends to non-Windows or non-x64 builds.
+The table below is for Windows x64. The macOS build has its own, narrower claim (see
+[macOS build](#macos-build)).
 
 Static Release and isolated Windows DLL-loader checks passed on:
 
@@ -186,6 +193,37 @@ The trusted origin defaults to `https://dashboard.roadie.gg`. A separate local b
 can specify a loopback HTTP origin. Browser cookies live in OBS's browser-plugin config in the
 `roadie-signal-cookies` folder (since 0.3.2; see below); microphone settings remain in the
 Roadie plugin's own config. No API keys are needed and sign-in uses the existing web session.
+
+## macOS build
+
+From 0.3.3 the plugin also builds for **Apple Silicon Macs** (arm64). It is the same source;
+only the build differs. On a Mac with Xcode Command Line Tools and OBS installed:
+
+```bash
+bash scripts/build-macos.sh            # build and package; installs nothing
+bash scripts/build-macos.sh --install  # also install for this user (OBS must be closed)
+```
+
+The script links against the installed **OBS.app**'s own libobs, obs-frontend-api and Qt,
+instead of building OBS. It fetches what the build needs into ignored `build/macos`:
+
+- OBS's source at the tag matching OBS.app, for headers.
+- `browser-panel.hpp` from the obs-browser commit that tag pins.
+- Qt from obs-deps, checked against the hash in that tag's `buildspec.json`, and refused when its
+  minor version differs from the Qt inside OBS.app.
+- SIMDe headers, which OBS 31+ libobs headers include but the OBS tree no longer carries.
+- Portable CMake 3.30.5 (hash-checked) when no CMake 3.28+ is installed.
+
+It then checks that the binary is arm64, exports the OBS module functions, and depends on
+nothing OBS.app does not provide, signs it ad-hoc, and packages
+`stage/macos/roadie-signal-<version>-obs<obs>-macos-arm64.zip` (plugin, `install.command`,
+README, LICENSE, build report) with `SHA256SUMS-macos.txt`.
+
+**Compatibility is narrower than on Windows.** The plugin needs the Qt it was built against or
+newer, so a Mac build supports the OBS version in its build report and newer. Build releases
+against the oldest OBS.app they should support. The Mac package is ad-hoc signed, not notarized,
+so macOS warns on first open; the installer clears the quarantine flag for the plugin only.
+Intel Macs are not supported.
 
 ## Local bridge, version 1
 
@@ -357,6 +395,31 @@ five commands. All additive.
 
 The **Tools → Roadie Signal…** choice is now labelled **Accept OBS changes from**; it governs every
 command, not only scene switches. The saved setting (`acceptFrom`) is unchanged.
+
+## 0.3.3 — the first macOS build, and no crash when quitting OBS on a Mac
+
+0.3.3 adds the macOS build above, contributed by **CtrlGremlin**, together with a fix for three
+crashes CtrlGremlin found in macOS crash reports when quitting OBS with the dock open:
+
+1. The 100 ms audio publish kept calling into the dock page during shutdown and while OBS's quit
+   dialog was open, after CEF had already dropped the page's main frame.
+2. Resuming those calls after a fixed delay was unsafe while the quit dialog stayed open.
+3. With the dock floating, Cmd+Q closes the dock's window before OBS's scripting-shutdown event,
+   so the later browser close touched a freed view.
+
+On macOS the plugin now stops calling into the page once OBS starts closing, under any modal
+dialog (including native alerts) and inside nested event loops, resumes only when a quit is
+cancelled, and closes its pages on Quit while every window still exists (unless an output is
+running, when OBS asks first and the normal shutdown runs).
+
+**Windows is unchanged.** It already closes the pages at scripting shutdown, before OBS removes
+the dock (see `docs/2026-09-30-shutdown-crash.md`), and no Windows crash report has shown a call
+into the page during shutdown. Pausing under every dialog there would drop scene events and
+command results for no gain. The Windows DLL differs from 0.3.2 only in its version.
+
+Verified here: the Windows build and DLL-loader probes, and that CtrlGremlin's patches apply to
+0.3.1's source. **Not verified here:** the Mac build itself, the quit crashes being gone, and the
+dock on a Mac. Those need a Mac build and OBS host testing.
 
 ## 0.3.2 — the sign-in survives a restart on OBS 33
 

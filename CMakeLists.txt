@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(roadie-signal VERSION 0.3.2 LANGUAGES CXX)
+project(roadie-signal VERSION 0.3.3 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -41,10 +41,31 @@ if(MSVC)
   target_compile_options(roadie-signal PRIVATE /W4 /permissive- /utf-8)
 else()
   target_compile_options(roadie-signal PRIVATE -Wall -Wextra -Wpedantic)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # libobs' public headers use anonymous structs in unions; keep the log about our code.
+    target_compile_options(roadie-signal PRIVATE -Wno-gnu-anonymous-struct -Wno-nested-anon-types)
+  endif()
 endif()
 set_target_properties(roadie-signal PROPERTIES PREFIX "")
 if(WIN32)
   install(TARGETS roadie-signal RUNTIME DESTINATION obs-plugins/64bit LIBRARY DESTINATION obs-plugins/64bit)
+elseif(APPLE)
+  # OBS on macOS loads <name>.plugin/Contents/MacOS/<name> from
+  # ~/Library/Application Support/obs-studio/plugins. libobs, obs-frontend-api
+  # and Qt resolve through OBS.app's own Frameworks at load time.
+  set_target_properties(roadie-signal PROPERTIES
+    BUNDLE TRUE
+    BUNDLE_EXTENSION plugin
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/Info.plist.in"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "gg.roadie.signal"
+    MACOSX_BUNDLE_BUNDLE_NAME "roadie-signal"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    BUILD_WITH_INSTALL_RPATH TRUE
+    INSTALL_RPATH "@executable_path/../Frameworks")
+  # quit-crash fix v2 asks AppKit whether a native modal dialog is open.
+  target_link_libraries(roadie-signal PRIVATE objc)
+  install(TARGETS roadie-signal LIBRARY DESTINATION . BUNDLE DESTINATION .)
 else()
-  message(FATAL_ERROR "This first build layout targets Windows x64. Other platforms need a verified packaging path.")
+  message(FATAL_ERROR "This build layout targets Windows x64 and macOS. Other platforms need a verified packaging path.")
 endif()

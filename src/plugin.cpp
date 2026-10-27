@@ -10,6 +10,9 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QDialog>
+#include <QApplication>
+#include <QEvent>
+#include <QTimer>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
@@ -77,6 +80,78 @@ QPointer<QAction> settingsAction;
 const char *browserStatus = "Dock startup has not run";
 int sendTo = Production;
 int acceptFrom = Production;
+
+#ifdef __APPLE__
+// 0.3.3, macOS only: the quit-crash fix CtrlGremlin contributed with the first macOS build. On a
+// Mac, quitting OBS tears the dock's browser down before SCRIPTING_SHUTDOWN, so a dock that keeps
+// calling into its page crashes OBS on every quit. Closing OBS's main window pauses script delivery
+// to the dock pages until the main window is active again with no dialog open (a cancelled quit).
+// Closing any other window pauses it for 3 s. Once shutdown has begun it never resumes.
+// Windows keeps its own path (prepareForShutdown at SCRIPTING_SHUTDOWN): no Windows crash report
+// has ever shown a call into the page during shutdown, and pausing under every dialog would drop
+// scene events and command results there for no gain.
+bool shuttingDown = false;
+bool mainClosing = false;
+int closeGeneration = 0;
+QWidget *obsMainWindow() { return static_cast<QWidget *>(obs_frontend_get_main_window()); }
+void resumeLater(int delay)
+{
+  const int generation = ++closeGeneration;
+  QTimer::singleShot(delay, qApp, [generation] {
+    if (shuttingDown || generation != closeGeneration)
+      return;
+    QWidget *main = obsMainWindow();
+    if (mainClosing && !(main && main->isVisible() && main->isActiveWindow()))
+      return;
+    roadieSetScriptsPaused(false);
+    if (!roadieScriptsSafe()) {
+      // Still inside a dialog or nested loop: stay paused and look again shortly.
+      roadieSetScriptsPaused(true);
+      resumeLater(1000);
+      return;
+    }
+    mainClosing = false;
+  });
+}
+void stopDocks();
+class CloseWatcher final : public QObject {
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override
+  {
+    if (shuttingDown)
+      return false;
+    // v3: Quit (Cmd+Q / OBS menu) closes every window, floating docks first, and a closed
+    // window takes its browser page with it. Close the pages now, while every window still
+    // exists. If an output is running OBS asks first and the quit may be cancelled, so the
+    // normal shutdown path (SCRIPTING_SHUTDOWN) handles that case instead.
+    if (event->type() == QEvent::Quit && watched == qApp) {
+      const bool outputsActive = obs_frontend_streaming_active() || obs_frontend_recording_active() ||
+                                 obs_frontend_replay_buffer_active() || obs_frontend_virtualcam_active();
+      if (!outputsActive) {
+        blog(LOG_INFO, "[roadie-signal] quit requested: closing dock pages before windows close");
+        stopDocks();
+      }
+      return false;
+    }
+    if (!watched->isWidgetType())
+      return false;
+    auto *widget = static_cast<QWidget *>(watched);
+    if (event->type() == QEvent::Close && widget->isWindow()) {
+      roadieSetScriptsPaused(true);
+      if (widget == obsMainWindow()) {
+        mainClosing = true;
+        ++closeGeneration; // cancel any pending resume
+      } else if (!mainClosing) {
+        resumeLater(3000);
+      }
+    } else if (event->type() == QEvent::WindowActivate && mainClosing && widget == obsMainWindow()) {
+      resumeLater(1500);
+    }
+    return false;
+  }
+};
+QPointer<CloseWatcher> closeWatcher;
+#endif
 
 QString originOf(Server server)
 {
@@ -573,6 +648,14 @@ void stopDocks()
   if (stopping)
     return;
   stopping = true;
+#ifdef __APPLE__
+  shuttingDown = true;
+  roadieSetScriptsPaused(true);
+  if (closeWatcher) {
+    qApp->removeEventFilter(closeWatcher);
+    closeWatcher->deleteLater(); // may be running inside its own eventFilter
+  }
+#endif
   sceneEvents.reset();
   if (settingsAction)
     delete settingsAction.data();
@@ -603,6 +686,12 @@ void frontendEvent(enum obs_frontend_event event, void *)
     startDocks();
     warnAboutOtherCopies();
     sceneEvents = std::make_unique<SceneEvents>();
+#ifdef __APPLE__
+    if (!closeWatcher) {
+      closeWatcher = new CloseWatcher;
+      qApp->installEventFilter(closeWatcher);
+    }
+#endif
   }
   if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED && sceneEvents)
     QMetaObject::invokeMethod(sceneEvents.get(), [] {

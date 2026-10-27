@@ -7,10 +7,47 @@
 #include <obs-frontend-api.h>
 #include <util/platform.h>
 #include <QJsonDocument>
+#include <QApplication>
+#include <QThread>
 #include <QJsonArray>
 #include <QUrl>
 #include <QUuid>
 #include <QVBoxLayout>
+
+#ifdef __APPLE__
+#include <objc/message.h>
+#include <objc/runtime.h>
+// A native NSAlert (QMessageBox on macOS) runs its own AppKit modal loop that Qt's
+// modal bookkeeping and loop level do not always reflect; ask AppKit directly.
+static bool nativeModalActive()
+{
+  using Send = void *(*)(void *, SEL);
+  auto send = reinterpret_cast<Send>(objc_msgSend);
+  void *appClass = reinterpret_cast<void *>(objc_getClass("NSApplication"));
+  if (!appClass)
+    return false;
+  void *app = send(appClass, sel_registerName("sharedApplication"));
+  return app && send(app, sel_registerName("modalWindow")) != nullptr;
+}
+#endif
+
+static bool scriptsPaused = false;
+
+void roadieSetScriptsPaused(bool paused) { scriptsPaused = paused; }
+
+// macOS: CEF can drop a browser's main frame while OBS closes (QCefWidget::executeJavaScript then
+// dereferences null). Never call into the page during shutdown, under a modal dialog, or from a
+// nested event loop: in normal running the main thread sits at loop level 1. Windows only ever
+// pauses through roadieSetScriptsPaused, which nothing there calls (see plugin.cpp).
+bool roadieScriptsSafe()
+{
+#ifdef __APPLE__
+  return !scriptsPaused && QThread::currentThread()->loopLevel() <= 1 && !QApplication::activeModalWidget() &&
+         !QGuiApplication::modalWindow() && !nativeModalActive();
+#else
+  return !scriptsPaused;
+#endif
+}
 
 static QString savedMicrophone()
 {
@@ -125,6 +162,8 @@ void SignalDock::signInIfSignedOut()
       "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsState==='1')return;"
       "const a=document.querySelector('a[href^=\"/auth/twitch/login\"]');if(a)location.href=a.href;})()";
   lastSignIn_.start();
+  if (!roadieScriptsSafe())
+    return;
   browser_->executeJavaScript(script.toStdString());
 }
 
@@ -325,6 +364,8 @@ void SignalDock::publish()
       "(()=>{if(window.top!==window||location.origin!==" + originJson +
       "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsAudio!=='1')return;"
       "window.dispatchEvent(new CustomEvent('roadie:obs-audio',{detail:" + payload + "}));})()";
+  if (!roadieScriptsSafe())
+    return;
   browser_->executeJavaScript(script.toStdString());
 }
 
@@ -410,5 +451,7 @@ void SignalDock::dispatch(const char *event, const char *marker, const QJsonObje
                             "[0]||location.pathname!=='/dock'||document.documentElement.dataset." + marker +
                             "!=='1')return;window.dispatchEvent(new CustomEvent('" + event + "',{detail:" + payload +
                             "}));})()";
+  if (!roadieScriptsSafe())
+    return;
   browser_->executeJavaScript(script.toStdString());
 }
