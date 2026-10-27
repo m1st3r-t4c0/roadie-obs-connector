@@ -11,6 +11,9 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QLabel>
 #include <QMessageBox>
@@ -46,10 +49,16 @@ Slot docks[] = {
 };
 
 constexpr const char *dockId = "roadie-signal";
-// Production's store, kept so the existing sign-in survives. Every page shares it: Roadie's
-// session cookie is per site, so the servers never see each other's, and the Twitch login they
-// share is what lets a page out of sight sign itself in without a click.
-constexpr const char *cookieStore = "roadie-signal/browser-cookies";
+// The one store every page shares: Roadie's session cookie is per site, so the servers never see
+// each other's, and the Twitch login they share is what lets a page out of sight sign itself in
+// without a click.
+//
+// 0.3.2: it sits directly in obs-browser's config folder. OBS 33's browser (CEF's Chrome runtime)
+// keeps cookies only for a store that is a direct child of that folder; a deeper one is silently
+// incognito, so on OBS 33 every restart signed the dock out. The 0.1.2–0.3.1 store is copied
+// across once (migrateCookieStore) and left in place, so going back to an older build still works.
+constexpr const char *cookieStore = "roadie-signal-cookies";
+constexpr const char *oldCookieStore = "roadie-signal/browser-cookies";
 std::unique_ptr<QCefCookieManager> cookies;
 // The pages are stacked with StackAll, so the page behind stays a visible widget: its browser
 // loads and keeps sending, it is only covered.
@@ -488,6 +497,38 @@ void warnAboutOtherCopies()
                            .arg(ROADIE_SIGNAL_VERSION, others.join("\n")));
 }
 
+bool copyFolder(const QString &from, const QString &to)
+{
+  if (!QDir().mkpath(to))
+    return false;
+  const QDir source(from);
+  for (const QFileInfo &entry : source.entryInfoList(QDir::Dirs | QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot)) {
+    const QString target = QDir(to).filePath(entry.fileName());
+    if (entry.isDir() ? !copyFolder(entry.absoluteFilePath(), target)
+                      : !QFile::copy(entry.absoluteFilePath(), target))
+      return false;
+  }
+  return true;
+}
+
+// Runs before the store opens, so nothing holds its files. A first start with no new store copies
+// the old one into a staging folder and renames it into place, so a failed copy leaves no half store.
+void migrateCookieStore()
+{
+  const QString current = QString::fromUtf8(browser->get_cookie_path(cookieStore).Get());
+  const QString old = QString::fromUtf8(browser->get_cookie_path(oldCookieStore).Get());
+  if (current.isEmpty() || old.isEmpty() || QFileInfo::exists(current) || !QFileInfo(old).isDir())
+    return;
+  const QString staging = current + ".copying";
+  QDir(staging).removeRecursively();
+  if (copyFolder(old, staging) && QDir().rename(staging, current)) {
+    blog(LOG_INFO, "[roadie-signal] sign-in moved to the %s store", cookieStore);
+    return;
+  }
+  QDir(staging).removeRecursively();
+  blog(LOG_WARNING, "[roadie-signal] the old sign-in could not be copied; sign in once more");
+}
+
 void startDocks()
 {
   if (browser)
@@ -510,6 +551,7 @@ void startDocks()
   }
   // QCef prefixes this name with obs-browser's config path. Passing an absolute
   // path creates an invalid nested drive path on Windows and returns nullptr.
+  migrateCookieStore();
   cookies.reset(browser->create_cookie_manager(cookieStore, true));
   if (!cookies) {
     browserStatus = "Browser cookie store could not be created";

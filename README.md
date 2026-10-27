@@ -183,8 +183,8 @@ fixture was verified against its official release digest. Actual tests belong in
 OBS on the streaming machine after dependency validation.
 
 The trusted origin defaults to `https://dashboard.roadie.gg`. A separate local build
-can specify a loopback HTTP origin. Browser cookies live in OBS's browser-plugin config under the stable
-`roadie-signal/browser-cookies` namespace; microphone settings remain in the
+can specify a loopback HTTP origin. Browser cookies live in OBS's browser-plugin config in the
+`roadie-signal-cookies` folder (since 0.3.2; see below); microphone settings remain in the
 Roadie plugin's own config. No API keys are needed and sign-in uses the existing web session.
 
 ## Local bridge, version 1
@@ -358,6 +358,26 @@ five commands. All additive.
 The **Tools → Roadie Signal…** choice is now labelled **Accept OBS changes from**; it governs every
 command, not only scene switches. The saved setting (`acceptFrom`) is unchanged.
 
+## 0.3.2 — the sign-in survives a restart on OBS 33
+
+On OBS 33 the dock asked for a sign-in at every start. OBS 33's browser moved to CEF's Chrome
+runtime, which keeps cookies only for a store whose folder sits **directly** in obs-browser's
+config folder; a deeper folder is silently treated as incognito and nothing is saved (upstream
+obs-browser `bb9b32e`, *Enable support for CEF 6613+ and Chrome Runtime*). The plugin's store was
+`roadie-signal/browser-cookies`, one level too deep. OBS migrated its own service logins, not
+other plugins'.
+
+- The store is now **`roadie-signal-cookies`**, a direct child, on every OBS version.
+- On the first start without it, the plugin copies the old store across before opening it (into a
+  `.copying` folder, then renamed into place, so a failed copy leaves nothing half-made). An
+  existing sign-in on OBS 30–32 carries over. The old folder is left alone, so an older build still
+  finds its sign-in.
+- The log says `sign-in moved to the roadie-signal-cookies store` once, or that the copy failed
+  and one more sign-in is needed. No paths or cookies are logged.
+
+Verified here: the build and the DLL-loader probes. **Not verified here:** a sign-in surviving an
+OBS 33 restart, and the carried-over sign-in on OBS 32. Both need OBS host testing.
+
 ## 0.3.1 additions — OBS's source numbers, for the Firebot import
 
 A Firebot effect often names an OBS source by its number in a scene alone. Roadie's Firebot import
@@ -416,8 +436,8 @@ or staging's when staging is the only server. With both on, the staging page run
 behind it (stacked with `QStackedLayout::StackAll`, so it stays a visible widget whose browser
 loads and keeps sending). There are no tabs; **Tools → Roadie Signal…** is the only setting.
 
-- **One cookie store for every page** (`roadie-signal/browser-cookies`, production's, so its
-  sign-in survives). Roadie's session cookie is per site, so the servers never see each other's;
+- **One cookie store for every page** (`roadie-signal-cookies` since 0.3.2,
+  `roadie-signal/browser-cookies` before). Roadie's session cookie is per site, so the servers never see each other's;
   the Twitch login the pages share lets the hidden page sign in without a click.
 - **The hidden page signs itself in.** Every five seconds, at most one attempt a minute, the plugin
   checks the trusted `/dock` page: if it shows Roadie's sign-in screen (no `roadieObsState`
