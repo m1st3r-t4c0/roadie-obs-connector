@@ -1,13 +1,24 @@
 # Roadie Signal native OBS dock
 
+## Download
+
+| Your computer | Download | Needs |
+|---|---|---|
+| **Windows** (x64) | [Roadie Signal 0.3.3 for Windows](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/latest) | OBS 30.0.0 or newer |
+| **Mac with Apple Silicon** (M1 or newer) | [Roadie Signal 0.3.1 for macOS](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/macos-v0.3.1-test.1) | OBS 32.2 or newer |
+| **Intel Mac** | Not supported yet | |
+
+Windows and Mac have separate releases, and the Mac build can be a version behind. The "Latest"
+release on GitHub is always the Windows one. The Mac release is named "for macOS" and has its
+own install guide in the ZIP. The Mac port is by **CtrlGremlin** (see [Credits](#credits)).
+
+Release tags keep their original `-test.N` names, but these releases are no longer test builds.
+
 ## Current release
 
-Version **0.2.0** is the first canonical release: tag `v0.2.0`, published as a full
-GitHub release rather than a test prerelease. It is a Windows x64 build targeting OBS
-**30.0.0 or newer** and Qt **6.5.3 or newer**. The [0.2.0 package](releases/v0.2.0/README.md)
-contains the standalone DLL, ZIP, checksum and build report. It is unsigned.
-Its source is 0.1.12's, unchanged apart from the version number. Dependency loading passed on
-OBS 30.0.0 and 32.0.4.
+Version **0.3.3** for Windows (tag `v0.3.3-test.1`) targets OBS **30.0.0 or newer** and Qt
+**6.5.3 or newer**. The [0.3.3 package](releases/v0.3.3-test.1/README.md) contains the standalone
+DLL, ZIP, checksum and build report. It is unsigned.
 All settings live in one window, **Tools → Roadie Signal…**: the running version and dock
 status, the microphone, and (since 0.1.11) where OBS data goes and whose scene changes OBS
 follows: Production, Staging or both. From 0.1.12 the plugin also warns when another Roadie
