@@ -93,5 +93,4 @@ Windows: built warning-free against OBS 30.0.0 / Qt 6.5.3 from a clean source tr
 imports resolved against OBS 30.0.0 and OBS 32.0.4. These are dependency checks, not an OBS host
 run. `build-report.json` records the source commit and DLL hash.
 
-macOS: built with `scripts/build-macos.sh` from the same commit; its own `build-report.json` and
-`SHA256SUMS-macos.txt` record the binary hash and the OBS version it was built against.
+macOS: the separate 0.3.1 release records its own source, patches, verification and known limits. It is not the Windows 0.3.3 DLL. See that release before installing.
