@@ -81,6 +81,15 @@ if ($LASTEXITCODE) { throw 'DLL export inspection failed.' }
 foreach ($symbol in @('obs_module_load', 'obs_module_unload', 'obs_module_ver', 'obs_module_set_pointer', 'obs_module_description')) {
     if (($exports -join "`n") -notmatch "\b$symbol\b") { throw "OBS module export missing: $symbol" }
 }
+# 1.0.0: the core the loader runs (obs-plugin.md §24), in the plugin's data folder.
+$coreDll = Join-Path $stage 'data/obs-plugins/roadie-signal/core/roadie-signal-core.dll'
+if (!(Test-Path $coreDll)) { throw 'The core DLL was not staged.' }
+$coreExports = & dumpbin.exe /nologo /exports $coreDll
+if ($LASTEXITCODE) { throw 'Core export inspection failed.' }
+foreach ($symbol in @('obs_module_load', 'obs_module_unload', 'obs_module_set_pointer')) {
+    if (($coreExports -join "`n") -notmatch "\b$symbol\b") { throw "Core export missing: $symbol" }
+}
+& dumpbin.exe /nologo /dependents $coreDll | Set-Content "$stage/core-dependencies.txt"
 $headers = & dumpbin.exe /nologo /headers $dll
 if ($LASTEXITCODE -or ($headers -join "`n") -notmatch '8664 machine') { throw 'Expected an x64 plugin DLL.' }
 $report = [ordered]@{
@@ -90,6 +99,7 @@ $report = [ordered]@{
     origin = $Origin
     stagingOrigin = $StagingOrigin
     dllSha256 = (Get-FileHash $dll).Hash.ToLowerInvariant()
+    coreSha256 = (Get-FileHash $coreDll).Hash.ToLowerInvariant()
     hostTested = $false
     sourceCommit = (& git -C $repo rev-parse HEAD)
     sourceDirty = [bool](& git -C $repo status --porcelain)
@@ -100,7 +110,8 @@ Write-Host "Release DLL staged at $dll. No plugin installed into OBS."
 Copy-Item -LiteralPath "$repo/README.md" -Destination "$stage/README.md" -Force
 Copy-Item -LiteralPath "$repo/LICENSE" -Destination "$stage/LICENSE" -Force
 $archive = Join-Path $repo "build/roadie-signal-$version-obs$($lock.obsVersion)-minimum-windows-x64.zip"
-Compress-Archive -Path "$stage/obs-plugins", "$stage/README.md", "$stage/LICENSE", "$stage/build-report.json" -DestinationPath $archive -Force
+Compress-Archive -Path "$stage/obs-plugins", "$stage/data", "$stage/README.md", "$stage/LICENSE", "$stage/build-report.json" -DestinationPath $archive -Force
 Copy-Item -LiteralPath $dll -Destination (Join-Path $repo 'build/roadie-signal.dll') -Force
+Copy-Item -LiteralPath $coreDll -Destination (Join-Path $repo 'build/roadie-signal-core.dll') -Force
 Write-Host "Standalone DLL ready at $repo/build/roadie-signal.dll"
 Write-Host "Test package ready at $archive"

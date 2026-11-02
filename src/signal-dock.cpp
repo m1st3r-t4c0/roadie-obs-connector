@@ -1,4 +1,5 @@
 #include "signal-dock.hpp"
+#include "core-update.hpp"
 #include "crash-reports.hpp"
 #include "obs-commands.hpp"
 #include "stream-health.hpp"
@@ -337,6 +338,22 @@ void SignalDock::runCommand(const QJsonObject &command)
     // page does not wait out its timeout.
     result["ok"] = false;
     result["error"] = QStringLiteral("commands-off");
+  } else if (action == QLatin1String("update-plugin")) {
+    // 1.0.0 (obs-plugin.md §24.2): the streamer pressed Update. Answered now; the download goes on
+    // and reports through roadie:obs-update to this dock, if it is still open.
+    QPointer<SignalDock> self(this);
+    const QString error = startCoreUpdate(command.value("version").toString(), [self](const QJsonObject &detail) {
+      if (self)
+        self->dispatch("roadie:obs-update", "roadieObsUpdate", detail);
+    });
+    result["ok"] = error.isEmpty();
+    if (!error.isEmpty())
+      result["error"] = error;
+  } else if (action == QLatin1String("revert-plugin")) {
+    const QString error = revertCore();
+    result["ok"] = error.isEmpty();
+    if (!error.isEmpty())
+      result["error"] = error;
   } else {
     // Scenes are searched only in OBS's own scene list, so set-scene can never select a source
     // that is not a scene; every other command reads its change back (obs-commands.cpp).
@@ -401,6 +418,8 @@ void SignalDock::publishState()
   frame["scenes"] = sceneNames;
   // A server the user takes no commands from is not told it can command OBS.
   frame["capabilities"] = obeys_ ? obsCommandCapabilities() : QJsonArray{};
+  // 1.0.0: which core runs, which waits for the next start, and any fall-back (§24.9).
+  frame["core"] = coreUpdateState();
   // 0.3.0: the sources and filters Roadie's OBS steps pick from.
   const QJsonObject inventory = obsInventory();
   frame["sources"] = inventory.value("sources");

@@ -463,7 +463,58 @@ five commands. All additive.
 The **Tools → Roadie Signal…** choice is now labelled **Accept OBS changes from**; it governs every
 command, not only scene switches. The saved setting (`acceptFrom`) is unchanged.
 
-## 0.3.4 — Roadie can take an OBS screenshot
+## 1.0.0 — one-click updates, with crash rollback
+
+1.0.0 is the last version anyone installs by hand. After it, the dock's **Update** button fetches a
+new version, and it runs from the next OBS start. Design: roadie `docs/specs/obs-plugin.md` §24.
+
+**Two files now.**
+
+| File                                                         | What it is                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `obs-plugins/64bit/roadie-signal.dll`                        | The **loader**, what OBS loads. Small, libobs only. It almost never changes; a loader change is a reinstall. |
+| `data/obs-plugins/roadie-signal/core/roadie-signal-core.dll` | The **core**, the plugin itself, as the installer shipped it. Never beside the loader, so OBS never loads it as a plugin. |
+
+Updated cores go in OBS's config folder for the plugin, `plugin_config/roadie-signal/cores/<version>/`,
+with `update.json` beside them recording which core runs, which waits for the next start, the last
+one that ran fine, and any start in progress.
+
+**Update.** The dock sends `update-plugin { version }`. The core downloads
+`manifest-<platform>.json`, its `.sig`, and the core named in the manifest from this repo's GitHub
+release `v<version>`, with the system's own `curl` (OBS ships Qt's network library without TLS).
+It checks the manifest's ECDSA P-256 signature against the key built into the plugin
+(`src/update-key.hpp`) with the system's own crypto (Windows CNG, macOS Security), then the core's
+SHA-256 and size, then the lowest OBS it supports. Only then does the core wait for the next start.
+The dock is told how it went through `roadie:obs-update`. **This is the plugin's one outbound
+request, and it happens only when the streamer presses Update.** `revert-plugin` makes the next start
+use the last good core.
+
+**Rollback.** Before a core starts, the loader writes it down as starting. A core counts as good
+after two minutes, or when OBS closes cleanly. A core whose starts never got there twice in a row is
+marked bad and never run again, and the last good one runs instead. A core that will not load at
+all falls back in the same start. The installer's core is always there as the floor.
+
+**Releasing a core:** `node scripts/sign-core.mjs <version> <platform> <core> <out>` with
+`ROADIE_SIGNAL_SIGNING_KEY` (the KB's `.secrets`) writes the three release files. It refuses a key
+that does not match the one built into the plugin.
+
+**Checked:**
+
+- The loader's rules on a headless libobs with stand-in cores (`tests/loader-rollback`): 14 cases,
+  covering a fresh install, an update, a core that crashes OBS on start twice, one that crashes later
+  twice, a bad core named again, and a missing core.
+- The plugin's own signature check against the release key (`tests/update-verify`): a signed
+  manifest passes; an altered manifest, an altered signature and another key's signature are refused.
+- `sign-core.mjs`'s output passes that check.
+- Both DLLs build against OBS 30.0.0 with no warnings and pass the loader check against 30.0.0 and
+  32.0.4.
+
+**Not yet tried:** in OBS, and the download itself, which needs a published release to fetch.
+The macOS build is Roadie to-do #294.
+
+**Also in 1.0.0:** the screenshot command below, first built as 0.3.4, which was never released.
+
+### Take an OBS screenshot (first built as 0.3.4)
 
 Roadie's _Take an OBS screenshot_ step no longer needs Firebot. The plugin adds one command,
 `take-screenshot` (`source`, `format` `png` or `jpg`, `width` 16–1920), listed under
@@ -480,7 +531,7 @@ Roadie's _Take an OBS screenshot_ step no longer needs Firebot. The plugin adds 
 - New error codes: `not-live`, `no-picture` (the source has no video or no size), `not-rendered`
   and `not-encoded`.
 
-Built against OBS 30.0.0 and loader-checked against 30.0.0 and 32.0.4. **Not yet tried in OBS.**
+Not yet tried in OBS.
 
 ## 0.3.3 — the first macOS build, and no crash when quitting OBS on a Mac
 

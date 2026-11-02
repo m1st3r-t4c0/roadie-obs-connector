@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(roadie-signal VERSION 0.3.4 LANGUAGES CXX)
+project(roadie-signal VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -33,22 +33,34 @@ if(ROADIE_SIGNAL_STAGING_ORIGIN STREQUAL ROADIE_SIGNAL_ORIGIN)
   message(FATAL_ERROR "Staging Signal origin must differ from the Signal origin.")
 endif()
 
-add_library(roadie-signal MODULE src/plugin.cpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp src/obs-commands.cpp src/obs-commands.hpp)
-target_include_directories(roadie-signal PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
-target_link_libraries(roadie-signal PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)
-target_compile_definitions(roadie-signal PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_STAGING_ORIGIN="${ROADIE_SIGNAL_STAGING_ORIGIN}" ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
-if(MSVC)
-  target_compile_options(roadie-signal PRIVATE /W4 /permissive- /utf-8)
-else()
-  target_compile_options(roadie-signal PRIVATE -Wall -Wextra -Wpedantic)
-  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # libobs' public headers use anonymous structs in unions; keep the log about our code.
-    target_compile_options(roadie-signal PRIVATE -Wno-gnu-anonymous-struct -Wno-nested-anon-types)
+# 1.0.0 (roadie docs/specs/obs-plugin.md §24): two binaries.
+# - roadie-signal, the loader: what OBS loads. Small, libobs only, and almost never changes.
+# - roadie-signal-core, the core: the plugin itself, which the loader loads and the streamer can
+#   update with one press. The installer's core sits in the plugin's data folder, never beside the
+#   loader, so OBS never loads it as a second plugin.
+add_library(roadie-signal-core MODULE src/plugin.cpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp src/obs-commands.cpp src/obs-commands.hpp src/core-update.cpp src/core-update.hpp src/update-key.hpp src/update-verify.cpp src/update-verify.hpp)
+target_include_directories(roadie-signal-core PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
+target_link_libraries(roadie-signal-core PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)
+add_library(roadie-signal MODULE src/loader/loader.cpp)
+target_link_libraries(roadie-signal PRIVATE OBS::libobs)
+foreach(target roadie-signal roadie-signal-core)
+  target_compile_definitions(${target} PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_STAGING_ORIGIN="${ROADIE_SIGNAL_STAGING_ORIGIN}" ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      # libobs' public headers use anonymous structs in unions; keep the log about our code.
+      target_compile_options(${target} PRIVATE -Wno-gnu-anonymous-struct -Wno-nested-anon-types)
+    endif()
   endif()
-endif()
-set_target_properties(roadie-signal PROPERTIES PREFIX "")
+  set_target_properties(${target} PROPERTIES PREFIX "")
+endforeach()
 if(WIN32)
+  # The update signature is checked with Windows' own crypto (CNG); no library of ours.
+  target_link_libraries(roadie-signal-core PRIVATE bcrypt)
   install(TARGETS roadie-signal RUNTIME DESTINATION obs-plugins/64bit LIBRARY DESTINATION obs-plugins/64bit)
+  install(TARGETS roadie-signal-core RUNTIME DESTINATION data/obs-plugins/roadie-signal/core LIBRARY DESTINATION data/obs-plugins/roadie-signal/core)
 elseif(APPLE)
   # OBS on macOS loads <name>.plugin/Contents/MacOS/<name> from
   # ~/Library/Application Support/obs-studio/plugins. libobs, obs-frontend-api
@@ -63,8 +75,17 @@ elseif(APPLE)
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
     BUILD_WITH_INSTALL_RPATH TRUE
     INSTALL_RPATH "@executable_path/../Frameworks")
-  # quit-crash fix v2 asks AppKit whether a native modal dialog is open.
-  target_link_libraries(roadie-signal PRIVATE objc)
+  # quit-crash fix v2 asks AppKit whether a native modal dialog is open. The update signature is
+  # checked with macOS's own Security framework.
+  target_link_libraries(roadie-signal-core PRIVATE objc "-framework Security" "-framework CoreFoundation")
+  # Not yet built on a Mac (CtrlGremlin, Roadie to-do #294): the core is a plain .dylib that the
+  # loader finds in the bundle's Resources/core, OBS's data folder for the plugin.
+  set_target_properties(roadie-signal-core PROPERTIES SUFFIX ".dylib"
+    BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/../Frameworks")
+  add_custom_command(TARGET roadie-signal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:roadie-signal>/Resources/core"
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:roadie-signal-core>" "$<TARGET_BUNDLE_CONTENT_DIR:roadie-signal>/Resources/core/")
+  add_dependencies(roadie-signal roadie-signal-core)
   install(TARGETS roadie-signal LIBRARY DESTINATION . BUNDLE DESTINATION .)
 else()
   message(FATAL_ERROR "This build layout targets Windows x64 and macOS. Other platforms need a verified packaging path.")

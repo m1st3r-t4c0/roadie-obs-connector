@@ -300,7 +300,8 @@ QJsonArray obsCommandCapabilities()
 {
   return QJsonArray{QStringLiteral("set-scene"), QStringLiteral("set-source-visibility"),
                     QStringLiteral("set-text"), QStringLiteral("set-mute"), QStringLiteral("set-filter"),
-                    QStringLiteral("take-screenshot")};
+                    QStringLiteral("take-screenshot"), QStringLiteral("update-plugin"),
+                    QStringLiteral("revert-plugin")};
 }
 
 QJsonObject runObsCommand(const QJsonObject &command)
