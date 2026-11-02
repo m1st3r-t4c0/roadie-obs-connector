@@ -469,13 +469,16 @@ Roadie's _Take an OBS screenshot_ step no longer needs Firebot. The plugin adds 
 `take-screenshot` (`source`, `format` `png` or `jpg`, `width` 16–1920), listed under
 `capabilities` like the others, only while this server is chosen under _Accept OBS changes from_.
 
+- **Only an OBS that is streaming takes it.** Every open dock is sent the command; an OBS that is
+  not live answers `not-live` and takes nothing, so a streamer with OBS on two PCs gets the
+  picture from the one viewers are watching.
 - The source or scene is rendered into a texture of its own at `width`, its shape kept, the way
   obs-websocket's `GetSourceScreenshot` does it. Nothing on the program or preview changes.
 - The answer carries the picture as `image` (`data:image/png;base64,…` or `image/jpeg`). The
   signed-in `/dock` page sends it to Roadie with the step's one-use ticket. The plugin itself
   never makes a network request.
-- New error codes: `no-picture` (the source has no video or no size), `not-rendered` and
-  `not-encoded`.
+- New error codes: `not-live`, `no-picture` (the source has no video or no size), `not-rendered`
+  and `not-encoded`.
 
 Built against OBS 30.0.0 and loader-checked against 30.0.0 and 32.0.4. **Not yet tried in OBS.**
 

@@ -173,6 +173,10 @@ QJsonObject takeScreenshot(const QJsonObject &command)
   if (!validName(sourceName) || (format != QLatin1String("png") && format != QLatin1String("jpg")) ||
       !widthValue.isDouble() || width < minShotWidth || width > maxShotWidth)
     return failed("bad-command");
+  // Only the OBS that is live takes the picture (t4c0, 2026-11-02): every open dock is sent the
+  // command, and a streamer with OBS on two PCs wants the one viewers are watching.
+  if (!obs_frontend_streaming_active())
+    return failed("not-live");
   obs_source_t *source = obs_get_source_by_name(sourceName.toUtf8().constData());
   if (!source)
     return failed("no-such-source");
