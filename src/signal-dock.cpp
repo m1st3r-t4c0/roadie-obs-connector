@@ -344,6 +344,9 @@ void SignalDock::runCommand(const QJsonObject &command)
     result["ok"] = outcome.value("ok");
     if (outcome.contains("error"))
       result["error"] = outcome.value("error");
+    // 0.3.4: take-screenshot's picture, for the dock to send on to Roadie with the step's ticket.
+    if (outcome.contains("image"))
+      result["image"] = outcome.value("image");
     if (outcome.value("ok").toBool())
       blog(LOG_INFO, "[roadie-signal] Roadie ran %s", action.toUtf8().constData());
   }

@@ -1,9 +1,14 @@
 #include "obs-commands.hpp"
 #include <obs-module.h>
 #include <obs-frontend-api.h>
+#include <graphics/vec4.h>
+#include <QBuffer>
+#include <QByteArray>
 #include <QHash>
+#include <QImage>
 #include <QStringList>
 #include <QVector>
+#include <cstring>
 
 namespace {
 constexpr int maxName = 256;
@@ -11,6 +16,11 @@ constexpr int maxText = 4000;
 constexpr int maxSources = 400;
 constexpr int maxScenesPerSource = 200;
 constexpr int maxFilters = 400;
+// 0.3.4: Roadie stores a screenshot at most 1920 wide (OBS_SCREENSHOT_WIDTH_MAX), and never tall
+// enough to be a memory problem however thin the source is.
+constexpr int minShotWidth = 16;
+constexpr int maxShotWidth = 1920;
+constexpr int maxShotHeight = 4096;
 
 bool validName(const QString &name) { return !name.isEmpty() && name.size() <= maxName; }
 
@@ -151,6 +161,82 @@ QJsonObject setScene(const QJsonObject &command)
   return done();
 }
 
+// 0.3.4: one still of a source or scene, scaled to `width` with its shape kept — what obs-websocket's
+// GetSourceScreenshot gives the Firebot connector. Rendered into a texture of its own, so nothing on
+// the program or preview changes. The dock, not the plugin, sends the image to Roadie.
+QJsonObject takeScreenshot(const QJsonObject &command)
+{
+  const QString sourceName = command.value("source").toString();
+  const QString format = command.value("format").toString();
+  const QJsonValue widthValue = command.value("width");
+  const int width = widthValue.toInt(0);
+  if (!validName(sourceName) || (format != QLatin1String("png") && format != QLatin1String("jpg")) ||
+      !widthValue.isDouble() || width < minShotWidth || width > maxShotWidth)
+    return failed("bad-command");
+  obs_source_t *source = obs_get_source_by_name(sourceName.toUtf8().constData());
+  if (!source)
+    return failed("no-such-source");
+  const uint32_t sourceWidth = obs_source_get_width(source);
+  const uint32_t sourceHeight = obs_source_get_height(source);
+  if (!(obs_source_get_output_flags(source) & OBS_SOURCE_VIDEO) || sourceWidth == 0 || sourceHeight == 0) {
+    obs_source_release(source);
+    return failed("no-picture");
+  }
+  const int height = qBound(1, static_cast<int>(static_cast<double>(width) * sourceHeight / sourceWidth + 0.5),
+                            maxShotHeight);
+
+  QImage image(width, height, QImage::Format_RGBA8888);
+  bool rendered = false;
+  obs_enter_graphics();
+  gs_texrender_t *texrender = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
+  gs_stagesurf_t *stage = gs_stagesurface_create(width, height, GS_RGBA);
+  if (texrender && stage && gs_texrender_begin(texrender, width, height)) {
+    vec4 clear;
+    vec4_zero(&clear);
+    gs_clear(GS_CLEAR_COLOR, &clear, 0.0f, 0);
+    gs_ortho(0.0f, static_cast<float>(sourceWidth), 0.0f, static_cast<float>(sourceHeight), -100.0f, 100.0f);
+    gs_blend_state_push();
+    gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+    obs_source_inc_showing(source);
+    obs_source_video_render(source);
+    obs_source_dec_showing(source);
+    gs_blend_state_pop();
+    gs_texrender_end(texrender);
+    gs_stage_texture(stage, gs_texrender_get_texture(texrender));
+    uint8_t *data = nullptr;
+    uint32_t linesize = 0;
+    if (gs_stagesurface_map(stage, &data, &linesize)) {
+      const size_t row = static_cast<size_t>(image.bytesPerLine());
+      for (int y = 0; y < height; ++y)
+        std::memcpy(image.scanLine(y), data + static_cast<size_t>(y) * linesize, qMin<size_t>(row, linesize));
+      gs_stagesurface_unmap(stage);
+      rendered = true;
+    }
+  }
+  if (stage)
+    gs_stagesurface_destroy(stage);
+  if (texrender)
+    gs_texrender_destroy(texrender);
+  obs_leave_graphics();
+  obs_source_release(source);
+  if (!rendered)
+    return failed("not-rendered");
+
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  buffer.open(QIODevice::WriteOnly);
+  const bool png = format == QLatin1String("png");
+  // A JPEG has no transparency: flatten onto black, as OBS's own output would show it.
+  const bool encoded = png ? image.save(&buffer, "PNG")
+                           : image.convertToFormat(QImage::Format_RGB888).save(&buffer, "JPG", 85);
+  if (!encoded || bytes.isEmpty())
+    return failed("not-encoded");
+  QJsonObject result = done();
+  result["image"] = QString::fromLatin1(png ? "data:image/png;base64," : "data:image/jpeg;base64,") +
+                    QString::fromLatin1(bytes.toBase64());
+  return result;
+}
+
 // Collected while walking the scenes, in the order OBS lists them.
 struct Inventory {
   QVector<QString> order;
@@ -209,7 +295,8 @@ bool walkItem(obs_scene_t *, obs_sceneitem_t *item, void *param)
 QJsonArray obsCommandCapabilities()
 {
   return QJsonArray{QStringLiteral("set-scene"), QStringLiteral("set-source-visibility"),
-                    QStringLiteral("set-text"), QStringLiteral("set-mute"), QStringLiteral("set-filter")};
+                    QStringLiteral("set-text"), QStringLiteral("set-mute"), QStringLiteral("set-filter"),
+                    QStringLiteral("take-screenshot")};
 }
 
 QJsonObject runObsCommand(const QJsonObject &command)
@@ -225,6 +312,8 @@ QJsonObject runObsCommand(const QJsonObject &command)
     return setMuted(command);
   if (action == QLatin1String("set-filter"))
     return setFilterEnabled(command);
+  if (action == QLatin1String("take-screenshot"))
+    return takeScreenshot(command);
   return failed("unknown-action");
 }
 

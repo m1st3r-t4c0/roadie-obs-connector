@@ -463,6 +463,22 @@ five commands. All additive.
 The **Tools → Roadie Signal…** choice is now labelled **Accept OBS changes from**; it governs every
 command, not only scene switches. The saved setting (`acceptFrom`) is unchanged.
 
+## 0.3.4 — Roadie can take an OBS screenshot
+
+Roadie's _Take an OBS screenshot_ step no longer needs Firebot. The plugin adds one command,
+`take-screenshot` (`source`, `format` `png` or `jpg`, `width` 16–1920), listed under
+`capabilities` like the others, only while this server is chosen under _Accept OBS changes from_.
+
+- The source or scene is rendered into a texture of its own at `width`, its shape kept, the way
+  obs-websocket's `GetSourceScreenshot` does it. Nothing on the program or preview changes.
+- The answer carries the picture as `image` (`data:image/png;base64,…` or `image/jpeg`). The
+  signed-in `/dock` page sends it to Roadie with the step's one-use ticket. The plugin itself
+  never makes a network request.
+- New error codes: `no-picture` (the source has no video or no size), `not-rendered` and
+  `not-encoded`.
+
+Built against OBS 30.0.0 and loader-checked against 30.0.0 and 32.0.4. **Not yet tried in OBS.**
+
 ## 0.3.3 — the first macOS build, and no crash when quitting OBS on a Mac
 
 0.3.3 adds the macOS build above, contributed by **CtrlGremlin**, together with a fix for three
