@@ -19,7 +19,7 @@ filters and taking screenshots.
 
 | Your computer | Download | Needs |
 |---|---|---|
-| **Windows** (x64) | [Roadie Signal 0.3.3 for Windows](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/latest) | OBS 30.0.0 or newer |
+| **Windows** (x64) | [Roadie Signal 1.0.0 for Windows](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/latest) | OBS 30.0.0 or newer |
 | **Mac with Apple Silicon** (M1 or newer) | [Roadie Signal 0.3.1 for macOS](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/macos-v0.3.1-test.1) | OBS 32.2 or newer |
 | **Intel Mac** | Not supported yet | |
 
@@ -27,44 +27,45 @@ Windows and Mac have separate releases, and the Mac build can be a version behin
 release on GitHub is always the Windows one. Older release tags keep their original `-test.N`
 names, but those releases are no longer test builds.
 
-**1.0.0 is in `main` but not released yet.** See [1.0.0: one-click updates](#100-one-click-updates).
-
 ## Install on Windows
 
 The OBS connector is the recommended way to connect Roadie to your stream. Use the Firebot
 plugin only if you plan to connect Roadie's queue system to Firebot.
 
-1. **Download** the Windows ZIP under the release's **Assets** (not **Source code**). The ZIP
-   contains `roadie-signal.dll` inside `obs-plugins/64bit/`; the same DLL is also a standalone
-   asset. No compilation is needed.
-2. **Install.** Check your OBS version in **Help → About**, close OBS completely, extract the ZIP,
-   and copy **only `roadie-signal.dll`** to the folder for your OBS version below. Create the
-   folder if it does not exist. Windows may ask for administrator permission.
+1. **Download** the Windows ZIP under the release's **Assets** (not **Source code**). No
+   compilation is needed.
+2. **Install.** Check your OBS version in **Help → About**, close OBS completely and extract the
+   ZIP. Since 1.0.0 the plugin is **two files**, and both go in the folders for your OBS version
+   below. Create the folders if they do not exist. Windows may ask for administrator permission.
 3. **Restart OBS.**
 4. **Open the dock:** **Docks → Roadie Signal**.
 5. **Log in** to Roadie inside the dock.
 
-| OBS | Put the DLL here |
-|---|---|
-| 30–32 | `C:\Program Files\obs-studio\obs-plugins\64bit\roadie-signal.dll` (under the OBS you actually run) |
-| 33 and newer | `C:\ProgramData\obs-studio\plugins\roadie-signal\roadie-signal.dll` |
-| Portable, 30–32 | `<portable OBS>\obs-plugins\64bit\roadie-signal.dll` |
-| Portable, 33+ | `<portable OBS>\plugins\roadie-signal\roadie-signal.dll` |
+| OBS | `roadie-signal.dll` (from the ZIP's `obs-plugins\64bit`) | `roadie-signal-core.dll` (from the ZIP's `data\obs-plugins\roadie-signal\core`) |
+|---|---|---|
+| 30–32 | `C:\Program Files\obs-studio\obs-plugins\64bit\` | `C:\Program Files\obs-studio\data\obs-plugins\roadie-signal\core\` |
+| 33 and newer | `C:\ProgramData\obs-studio\plugins\roadie-signal\` | `C:\ProgramData\obs-studio\plugins\roadie-signal\data\core\` |
+| Portable, 30–32 | `<portable OBS>\obs-plugins\64bit\` | `<portable OBS>\data\obs-plugins\roadie-signal\core\` |
+| Portable, 33+ | `<portable OBS>\plugins\roadie-signal\` | `<portable OBS>\plugins\roadie-signal\data\core\` |
 
-OBS 29 and earlier are not supported.
+For OBS 30–32, use the OBS installation you actually run. OBS 29 and earlier are not supported.
+**Never put `roadie-signal-core.dll` beside `roadie-signal.dll`**: OBS would try to load it as a
+second plugin.
 
 **OBS 33+:** paste `C:\ProgramData\obs-studio\plugins` into File Explorer's address bar if
-ProgramData is hidden. Do **not** nest the ZIP's `obs-plugins\64bit` folders there, and do not
-put the DLL in OBS's `core` folder. The old Program Files location is flagged Legacy in OBS 33 and
-will not load in OBS 34 (see [OBS's plugin location guidance](https://obsproject.com/kb/legacy-plugin-developer-info)).
+ProgramData is hidden. Do not put either file in OBS's `core` folder. The old Program Files
+location is flagged Legacy in OBS 33 and will not load in OBS 34 (see
+[OBS's plugin location guidance](https://obsproject.com/kb/legacy-plugin-developer-info)).
 Portable OBS ignores ProgramData plugins.
 
 **Moving an existing install:** close OBS and remove only the old Roadie DLL (from
 `obs-plugins\64bit`, or the old ProgramData `roadie-signal\bin\64bit` folder), including renamed
-copies. Keep one Roadie DLL with its original name. Your OBS settings and scenes are untouched.
+copies. Keep one `roadie-signal.dll` with its original name. Your OBS settings and scenes are
+untouched.
 
-**Update** by closing OBS and replacing the DLL; **uninstall** by closing OBS and removing it.
-The Windows build is unsigned.
+**Update:** from 1.0.0, press **Update** in the dock when Roadie offers one; it applies the next
+time OBS starts. Coming from 0.3.x or earlier, install 1.0.0 by hand as above (both files).
+**Uninstall** by closing OBS and removing both files. The Windows build is unsigned.
 
 ### After login and troubleshooting
 
@@ -123,8 +124,8 @@ Roadie's _Take an OBS screenshot_ step no longer needs Firebot. See the [changel
 
 **Status:** the loader's rollback rules (14 cases on headless libobs), the signature check and
 `sign-core.mjs` are tested, and both DLLs build against OBS 30.0.0 and pass the loader check on
-30.0.0 and 32.0.4. **Not yet tried in OBS**, and the download path needs a published release to
-fetch. The macOS build is Roadie to-do #294.
+30.0.0 and 32.0.4. **Not yet tried in a running OBS**, including the update download. The macOS
+build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
 
 ### Releasing a core
 

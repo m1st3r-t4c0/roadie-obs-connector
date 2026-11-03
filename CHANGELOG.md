@@ -5,7 +5,8 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
 
 ## 1.0.0 — one-click updates, with crash rollback
 
-Not released yet.
+Tag `v1.0.0`. Package: [releases/v1.0.0](releases/v1.0.0/README.md). **Install is now two files**;
+see [Install on Windows](README.md#install-on-windows).
 
 - **One-click updates.** The plugin is now a loader (what OBS loads, libobs only) and a core (the
   plugin itself). The dock's **Update** button downloads a signed core from this repo's GitHub
