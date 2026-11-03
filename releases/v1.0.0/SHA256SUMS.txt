@@ -1,0 +1,7 @@
+6a444c06b0cae4277285e3564b9029fb8cba599a5a69bf90a701ee049a400d16  roadie-signal.dll
+dad5737fa28abebbfdbaad44ba154ccf95e02cd2d1b8a8590070be1393285f54  roadie-signal-core.dll
+a590623c28f3f0efc23443a2fd8506cc147ca5174d7411a96a6b1ce2bbc6cb6f  roadie-signal-1.0.0-obs30.0.0-windows-x64.zip
+dad5737fa28abebbfdbaad44ba154ccf95e02cd2d1b8a8590070be1393285f54  roadie-signal-core-windows-x64.dll
+a444a016293928561bf4a02830c07d28b3933a986e5ffeba5bc62107dfebc3cc  manifest-windows-x64.json
+56104d8517b3424c0a7471062b48f87be189efe6836462bf0356e8ffcc04d107  manifest-windows-x64.sig
+07f09d548a08f8f71ba327baec0b9db6f584834640a8340099c0802cc79c839c  build-report.json

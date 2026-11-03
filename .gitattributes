@@ -1,2 +1,5 @@
 *.sh text eol=lf
 *.command text eol=lf
+# Signed update files: their exact bytes are what the signature and SHA256SUMS cover.
+releases/**/manifest-*.json -text
+releases/**/manifest-*.sig -text
