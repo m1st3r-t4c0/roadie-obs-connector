@@ -22,8 +22,8 @@ see [Install on Windows](README.md#install-on-windows).
 Tested: the loader's rules on headless libobs (14 cases: fresh install, update, a core that crashes
 OBS on start twice, one that crashes later twice, a bad core named again, a missing core); the
 signature check against the release key; both DLLs build against OBS 30.0.0 with no warnings and
-pass the loader check against 30.0.0 and 32.0.4. **Not yet tried in OBS**, and the download path
-needs a published release. The macOS build is Roadie to-do #294.
+pass the loader check against 30.0.0 and 32.0.4. **Tested in OBS by t4c0 on 2026-11-04: it works.**
+An update to a later release, and a rollback, can first be tried once that release exists. The macOS build is Roadie to-do #294.
 
 See the [README](README.md#100-one-click-updates) for the install layout and update design.
 

@@ -44,5 +44,5 @@ plugin's own signature check accepts this release's manifest and refuses altered
 altered signatures and other keys, and `sign-core.mjs` checked the signature against the key built
 into the plugin before writing the files.
 
-**Not verified:** a run in a real OBS, including the dock, sign-in and the update download itself.
-These are dependency and unit checks, not an OBS host run. The Mac release stays 0.3.1.
+**Tested in OBS by t4c0 on 2026-11-04: it works.** Still to try: an update from 1.0.0 to a later
+release, and a rollback, which need that release to exist. The Mac release stays 0.3.1.

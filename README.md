@@ -124,8 +124,8 @@ Roadie's _Take an OBS screenshot_ step no longer needs Firebot. See the [changel
 
 **Status:** the loader's rollback rules (14 cases on headless libobs), the signature check and
 `sign-core.mjs` are tested, and both DLLs build against OBS 30.0.0 and pass the loader check on
-30.0.0 and 32.0.4. **Not yet tried in a running OBS**, including the update download. The macOS
-build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
+30.0.0 and 32.0.4. **Tested in OBS by t4c0 on 2026-11-04: it works.** An update from 1.0.0 to a
+later release, and a rollback, can first be tried once that release is published. The macOS build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
 
 ### Releasing a core
 
@@ -248,7 +248,8 @@ verification remains required:
    scene-collection changes and a stopped audio device.
 5. Confirm no audio reaches login/OAuth/other-origin or other-path pages, and that unload/shutdown
    removes callbacks and destroys the browser safely.
-6. 1.0.0: an update and a rollback in a real OBS.
+6. 1.0.0: installed and working in OBS (t4c0, 2026-11-04). Still to try: an update to the next
+   release, and a rollback.
 
 ## Repository boundary
 
