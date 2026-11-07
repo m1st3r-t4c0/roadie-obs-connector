@@ -1,5 +1,6 @@
 #include "signal-dock.hpp"
 #include "scene-events.hpp"
+#include "obs-layout.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -76,6 +77,7 @@ bool signingInLeftDock = false;
 
 std::unique_ptr<QCef> browser;
 std::unique_ptr<SceneEvents> sceneEvents;
+std::unique_ptr<LayoutEvents> layoutEvents;
 QPointer<QAction> settingsAction;
 const char *browserStatus = "Dock startup has not run";
 int sendTo = Production;
@@ -657,6 +659,7 @@ void stopDocks()
   }
 #endif
   sceneEvents.reset();
+  layoutEvents.reset();
   if (settingsAction)
     delete settingsAction.data();
   // Every browser closes first, with the whole dock alive; then OBS lets go of the
@@ -686,6 +689,7 @@ void frontendEvent(enum obs_frontend_event event, void *)
     startDocks();
     warnAboutOtherCopies();
     sceneEvents = std::make_unique<SceneEvents>();
+    layoutEvents = std::make_unique<LayoutEvents>();
 #ifdef __APPLE__
     if (!closeWatcher) {
       closeWatcher = new CloseWatcher;
@@ -696,6 +700,7 @@ void frontendEvent(enum obs_frontend_event event, void *)
   if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED && sceneEvents)
     QMetaObject::invokeMethod(sceneEvents.get(), [] {
       if (sceneEvents) sceneEvents->currentScene(true);
+      if (layoutEvents) layoutEvents->poke();
     }, Qt::QueuedConnection);
   switch (event) {
   case OBS_FRONTEND_EVENT_SCENE_CHANGED:

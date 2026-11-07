@@ -144,6 +144,7 @@ seconds without one. A server not chosen under **Accept OBS changes from** is an
 | 1.0.0 | `take-screenshot` | `source`, `format` (`png` or `jpg`), `width` (16–1920) |
 | 1.0.0 | `update-plugin` | `version` |
 | 1.0.0 | `revert-plugin` | |
+| 1.1.0 | `get-layout` | `scene` (optional). No scene reads the one on air; any scene in OBS's list can be named, on air or not. |
 
 The 0.3.0 commands **read the change back before answering**, so `"ok": true` means OBS holds the
 new value. A source in a group inside the scene is found too (`obs_scene_find_source_recursive`).
@@ -162,6 +163,9 @@ Errors: `no-such-scene`, `no-such-source`, `no-such-filter`, `not-a-text-source`
 `not-an-audio-input`, `not-applied`, `bad-command`, `unknown-action`, `commands-off`, `not-live`,
 `no-picture` (no video or no size), `not-rendered`, `not-encoded`.
 
+`get-layout` answers with `layout`, the same shape `roadie:obs-layout` carries (below), for up to
+400 items. It reads OBS's lists only; nothing is rendered and nothing changes.
+
 ### Long commands come in parts
 
 Chromium cuts a document title at 4096 characters, and a text command carries up to 4000. The page
@@ -174,6 +178,40 @@ roadie-obs-command-part:{"version":1,"id":"...","index":0,"count":3,"data":"<a s
 The plugin acknowledges each part with **`roadie:obs-command-part`** (`{"version":1,"id","index"}`,
 marker `roadieObsCommand`), and the page writes the next only after that. Parts arrive in order; at
 most 16, 32 KB in all. The joined JSON is then checked and run like a one-title command.
+
+## `roadie:obs-layout` (1.1.0, marker `roadieObsState`)
+
+Where every source in the scene on air sits on OBS's canvas. The dock reads it four times a second
+and sends it **only when it changes**, plus once every five seconds so a page that loaded late catches
+up.
+
+```json
+{ "version": 1, "sessionId": "...", "sequence": 7,
+  "layout": { "scene": "Just Chatting", "canvas": { "width": 1920, "height": 1080 },
+              "items": [ { "id": 3, "name": "Camera", "kind": "dshow_input", "in": "Just Chatting",
+                           "x": 1360, "y": 700, "w": 520, "h": 292.5, "visible": true },
+                         { "id": 9, "name": "Roadie Stage", "kind": "browser_source", "in": "Just Chatting",
+                           "x": 0, "y": 0, "w": 1920, "h": 1080, "visible": true, "stage": true } ] } }
+```
+
+- **Rectangles are canvas pixels**: the item's upright bounding box from OBS's box transform, with
+  position, scale, rotation, bounds, alignment and crop folded in. A rotated item adds
+  `"rotated": true`.
+- **Groups and nested scenes are walked**, with each parent's transform applied; `in` names the scene
+  or group directly holding the item. Depth is capped at 6.
+- **Items with the eye off are included** with `"visible": false`, and an item inside a hidden group or
+  scene is hidden too.
+- Only sources that draw video, with a size, are listed; at most 64 here (400 for `get-layout`), with
+  `"truncated": true` when there were more.
+- `"stage": true` marks a browser source showing Roadie's Stage page (`/stage-output` or
+  `/stage-trial-output` on the production or staging origin). Only the flag is sent, never the URL,
+  which carries the Stage key.
+
+The same layout also reaches **Roadie's Stage pages in this OBS directly**, as an obs-browser
+`roadie:obs-layout` event (the path the transition events below use), checked ten times a second and
+sent only on a change (and every five seconds). Its `event_data` is `{ version, sessionId, sequence,
+at, layout }`. That is the fast path: a camera moved or resized, or moved by a filter, reaches the
+Stage page in the same OBS within about a tenth of a second.
 
 ## Stage transition events (0.1.7)
 

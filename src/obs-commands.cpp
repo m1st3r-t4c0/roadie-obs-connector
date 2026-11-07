@@ -1,4 +1,5 @@
 #include "obs-commands.hpp"
+#include "obs-layout.hpp"
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <graphics/vec4.h>
@@ -300,7 +301,7 @@ QJsonArray obsCommandCapabilities()
 {
   return QJsonArray{QStringLiteral("set-scene"), QStringLiteral("set-source-visibility"),
                     QStringLiteral("set-text"), QStringLiteral("set-mute"), QStringLiteral("set-filter"),
-                    QStringLiteral("take-screenshot"), QStringLiteral("update-plugin"),
+                    QStringLiteral("take-screenshot"), QStringLiteral("get-layout"), QStringLiteral("update-plugin"),
                     QStringLiteral("revert-plugin")};
 }
 
@@ -319,6 +320,10 @@ QJsonObject runObsCommand(const QJsonObject &command)
     return setFilterEnabled(command);
   if (action == QLatin1String("take-screenshot"))
     return takeScreenshot(command);
+  // 1.1.0: where every source in a scene sits. No scene means the one on air; any scene may be
+  // named, on air or not (t4c0, 2026-11-07).
+  if (action == QLatin1String("get-layout"))
+    return obsSceneLayout(command.value("scene").toString(), 400);
   return failed("unknown-action");
 }
 

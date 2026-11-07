@@ -44,6 +44,9 @@ public:
   QString elsewhere() const { return trustedPage_ ? QString() : lastHost_; }
   void publishState();
   void publishHealth();
+  // 1.1.0: the layout of the scene on air, sent only when it changes (and every five seconds, so a
+  // page or server that missed one catches up).
+  void publishLayout();
 
 signals:
   void pageChanged();
@@ -71,6 +74,10 @@ private:
   QTimer stateTimer_;
   QTimer cookieFlushTimer_;
   QTimer healthTimer_;
+  QTimer layoutTimer_;
+  QByteArray lastLayout_;
+  int layoutQuiet_ = 0;
+  quint64 layoutSequence_ = 0;
   AudioTap audio_;
   QString sessionId_;
   QString selectedUuid_;

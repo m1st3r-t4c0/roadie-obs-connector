@@ -3,6 +3,20 @@
 Windows release packages (DLL, ZIP, checksums, build report) are checked in under
 [`releases/`](releases). Protocol details are in [docs/bridge-protocol.md](docs/bridge-protocol.md).
 
+## 1.1.0 — where every source sits
+
+Not released yet. For roadie `docs/specs/stage-attach-to-obs-source.md` (Attach Stage sources to OBS
+sources).
+
+- **`get-layout`**: every source's rectangle on OBS's canvas in any scene, on air or not, including
+  sources inside groups and nested scenes, and sources whose eye is off (t4c0, 2026-11-07).
+- **`roadie:obs-layout`**: the layout of the scene on air, sent to the dock only when it changes, and
+  straight to Roadie's Stage pages in the same OBS through obs-browser.
+- The Roadie Stage browser source is marked in the layout, never by its URL.
+
+Tested: both DLLs build against OBS 30.0.0 with no warnings and pass the loader check against 30.0.0
+and 32.0.4. **Not tested in OBS yet.**
+
 ## 1.0.0 — one-click updates, with crash rollback
 
 Tag `v1.0.0`. Package: [releases/v1.0.0](releases/v1.0.0/README.md). **Install is now two files**;

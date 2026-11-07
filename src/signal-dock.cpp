@@ -2,6 +2,7 @@
 #include "core-update.hpp"
 #include "crash-reports.hpp"
 #include "obs-commands.hpp"
+#include "obs-layout.hpp"
 #include "stream-health.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
@@ -111,6 +112,9 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
     if (obs_frontend_streaming_active())
       publishHealth();
   });
+  // 1.1.0: four reads a second of the scene on air; only a change is sent (obs-layout.hpp).
+  layoutTimer_.setInterval(250);
+  connect(&layoutTimer_, &QTimer::timeout, this, [this] { publishLayout(); });
   cookieFlushTimer_.setInterval(30000);
   connect(&cookieFlushTimer_, &QTimer::timeout, this, [this] {
     if (cookieManager_)
@@ -124,6 +128,7 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
   timer_.start();
   stateTimer_.start();
   healthTimer_.start();
+  layoutTimer_.start();
   cookieFlushTimer_.start();
 }
 
@@ -180,6 +185,7 @@ SignalDock::~SignalDock()
   timer_.stop();
   stateTimer_.stop();
   healthTimer_.stop();
+  layoutTimer_.stop();
   cookieFlushTimer_.stop();
   audio_.detach();
   if (cookieManager_)
@@ -196,6 +202,7 @@ void SignalDock::prepareForShutdown()
   timer_.stop();
   stateTimer_.stop();
   healthTimer_.stop();
+  layoutTimer_.stop();
   cookieFlushTimer_.stop();
   signInTimer_.stop();
   audio_.detach();
@@ -364,6 +371,9 @@ void SignalDock::runCommand(const QJsonObject &command)
     // 0.3.4: take-screenshot's picture, for the dock to send on to Roadie with the step's ticket.
     if (outcome.contains("image"))
       result["image"] = outcome.value("image");
+    // 1.1.0: get-layout's answer.
+    if (outcome.contains("layout"))
+      result["layout"] = outcome.value("layout");
     if (outcome.value("ok").toBool())
       blog(LOG_INFO, "[roadie-signal] Roadie ran %s", action.toUtf8().constData());
   }
@@ -440,6 +450,24 @@ void SignalDock::publishHealth()
   frame["sessionId"] = sessionId_;
   frame["sequence"] = static_cast<double>(++healthSequence_);
   dispatch("roadie:obs-health", "roadieObsHealth", frame);
+}
+
+void SignalDock::publishLayout()
+{
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || !sends_)
+    return;
+  const QByteArray json = programLayoutJson(64);
+  if (json.isEmpty())
+    return;
+  if (json == lastLayout_ && ++layoutQuiet_ < 20)
+    return;
+  lastLayout_ = json;
+  layoutQuiet_ = 0;
+  const QJsonObject frame{{"version", 1},
+                          {"sessionId", sessionId_},
+                          {"sequence", static_cast<double>(++layoutSequence_)},
+                          {"layout", QJsonDocument::fromJson(json).object()}};
+  dispatch("roadie:obs-layout", "roadieObsState", frame);
 }
 
 void SignalDock::publishCrashReports()
