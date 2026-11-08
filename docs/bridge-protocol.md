@@ -69,6 +69,8 @@ Fields added later:
 | 0.3.0 | `sources` | `[{"name","kind","scenes":[...]}]`, OBS's input id as `kind` (empty for a scene or group), at most 400. |
 | 0.3.0 | `filters` | `[{"source","filter"}]`, at most 400. |
 | 0.3.1 | `sources[].items` | `[{"scene","id"}]`, one per place the source sits; `id` is `obs_sceneitem_get_id` within that scene or group. At most 200 per source. Used by Roadie's Firebot import. |
+| 1.1.0 | `loaderVersion` | The OBS plugin's own number (the loader), read from the description it gives OBS. `pluginVersion` stays the Roadie connector's (the core). Empty when no Roadie loader is found. |
+| 1.1.0 | `obsRequestBlocked` | The obs-websocket request types `obs-request` refuses. |
 | 0.3.1 | `sources[].durationMs` | A media source's length, when OBS has its file open. Omitted when OBS does not know it. |
 | 1.0.0 | `core` | The running core's update state (roadie `docs/specs/obs-plugin.md` §24). |
 
@@ -145,6 +147,7 @@ seconds without one. A server not chosen under **Accept OBS changes from** is an
 | 1.0.0 | `update-plugin` | `version` |
 | 1.0.0 | `revert-plugin` | |
 | 1.1.0 | `get-layout` | `scene` (optional). No scene reads the one on air; any scene in OBS's list can be named, on air or not. |
+| 1.1.0 | `obs-request` | `requestType` (an obs-websocket request name), `requestData` (optional object, at most 64 KB). |
 
 The 0.3.0 commands **read the change back before answering**, so `"ok": true` means OBS holds the
 new value. A source in a group inside the scene is found too (`obs_scene_find_source_recursive`).
@@ -165,6 +168,18 @@ Errors: `no-such-scene`, `no-such-source`, `no-such-filter`, `not-a-text-source`
 
 `get-layout` answers with `layout`, the same shape `roadie:obs-layout` carries (below), for up to
 400 items. It reads OBS's lists only; nothing is rendered and nothing changes.
+
+`obs-request` runs one obs-websocket request inside this OBS, through obs-websocket's plugin API
+(`obs_websocket_call_request`): no network, no WebSocket password, and it works with the WebSocket
+server switched off. It answers `{"ok": true, "status": 100, "response": {...}}` with obs-websocket's
+own response data (at most 512 KB), or `{"ok": false, "error": "request-failed", "status", "comment"}`
+with obs-websocket's status code and comment. Other errors: `blocked`, `too-large`,
+`obs-websocket-missing`, `bad-command`. Blocked (t4c0, 2026-11-08: everything except profiles and
+the stream's settings and key): `GetProfileList`, `SetCurrentProfile`, `CreateProfile`,
+`RemoveProfile`, `GetProfileParameter`, `SetProfileParameter`, `SetCurrentSceneCollection`,
+`CreateSceneCollection`, `GetStreamServiceSettings`, `SetStreamServiceSettings`, `SetVideoSettings`,
+`SetRecordDirectory`, `SaveSourceScreenshot`, `CallVendorRequest`. obs-websocket has no request
+that quits OBS. obs-websocket's events are not forwarded: its plugin API offers requests only.
 
 ### Long commands come in parts
 

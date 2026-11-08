@@ -38,13 +38,19 @@ endif()
 # - roadie-signal-core, the core: the plugin itself, which the loader loads and the streamer can
 #   update with one press. The installer's core sits in the plugin's data folder, never beside the
 #   loader, so OBS never loads it as a second plugin.
-add_library(roadie-signal-core MODULE src/plugin.cpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp src/obs-commands.cpp src/obs-commands.hpp src/obs-layout.cpp src/obs-layout.hpp src/core-update.cpp src/core-update.hpp src/update-key.hpp src/update-verify.cpp src/update-verify.hpp)
+add_library(roadie-signal-core MODULE src/plugin.cpp src/obs-request.cpp src/obs-request.hpp src/versions.cpp src/versions.hpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp src/obs-commands.cpp src/obs-commands.hpp src/obs-layout.cpp src/obs-layout.hpp src/core-update.cpp src/core-update.hpp src/update-key.hpp src/update-verify.cpp src/update-verify.hpp)
 target_include_directories(roadie-signal-core PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
 target_link_libraries(roadie-signal-core PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)
 add_library(roadie-signal MODULE src/loader/loader.cpp)
 target_link_libraries(roadie-signal PRIVATE OBS::libobs)
+# Two numbers (t4c0, 2026-11-08). The project version is the Roadie connector, the core the dock's
+# Update button downloads. The OBS plugin, the loader people install by hand, keeps its own number and
+# changes only when a change needs a reinstall.
+set(ROADIE_SIGNAL_LOADER_VERSION "1.0.0")
+target_compile_definitions(roadie-signal PRIVATE ROADIE_SIGNAL_VERSION="${ROADIE_SIGNAL_LOADER_VERSION}")
+target_compile_definitions(roadie-signal-core PRIVATE ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
 foreach(target roadie-signal roadie-signal-core)
-  target_compile_definitions(${target} PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_STAGING_ORIGIN="${ROADIE_SIGNAL_STAGING_ORIGIN}" ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
+  target_compile_definitions(${target} PRIVATE ROADIE_SIGNAL_ORIGIN="${ROADIE_SIGNAL_ORIGIN}" ROADIE_SIGNAL_STAGING_ORIGIN="${ROADIE_SIGNAL_STAGING_ORIGIN}")
   if(MSVC)
     target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)
   else()
@@ -71,8 +77,8 @@ elseif(APPLE)
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/Info.plist.in"
     MACOSX_BUNDLE_GUI_IDENTIFIER "gg.roadie.signal"
     MACOSX_BUNDLE_BUNDLE_NAME "roadie-signal"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${ROADIE_SIGNAL_LOADER_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${ROADIE_SIGNAL_LOADER_VERSION}"
     BUILD_WITH_INSTALL_RPATH TRUE
     INSTALL_RPATH "@executable_path/../Frameworks")
   # quit-crash fix v2 asks AppKit whether a native modal dialog is open. The update signature is

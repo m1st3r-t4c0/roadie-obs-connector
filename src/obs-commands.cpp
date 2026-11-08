@@ -1,5 +1,6 @@
 #include "obs-commands.hpp"
 #include "obs-layout.hpp"
+#include "obs-request.hpp"
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <graphics/vec4.h>
@@ -301,7 +302,8 @@ QJsonArray obsCommandCapabilities()
 {
   return QJsonArray{QStringLiteral("set-scene"), QStringLiteral("set-source-visibility"),
                     QStringLiteral("set-text"), QStringLiteral("set-mute"), QStringLiteral("set-filter"),
-                    QStringLiteral("take-screenshot"), QStringLiteral("get-layout"), QStringLiteral("update-plugin"),
+                    QStringLiteral("take-screenshot"), QStringLiteral("get-layout"), QStringLiteral("obs-request"),
+                    QStringLiteral("update-plugin"),
                     QStringLiteral("revert-plugin")};
 }
 
@@ -324,6 +326,10 @@ QJsonObject runObsCommand(const QJsonObject &command)
   // named, on air or not (t4c0, 2026-11-07).
   if (action == QLatin1String("get-layout"))
     return obsSceneLayout(command.value("scene").toString(), 400);
+  // 1.1.0: any obs-websocket request but the block list, so new OBS features need no new connector
+  // (t4c0, 2026-11-08).
+  if (action == QLatin1String("obs-request"))
+    return runObsRequest(command);
   return failed("unknown-action");
 }
 

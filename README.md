@@ -19,7 +19,7 @@ filters and taking screenshots.
 
 | Your computer | Download | Needs |
 |---|---|---|
-| **Windows** (x64) | [Roadie Signal 1.0.0 for Windows](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/latest) | OBS 30.0.0 or newer |
+| **Windows** (x64) | [Roadie Signal for Windows](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/latest) | OBS 30.0.0 or newer |
 | **Mac with Apple Silicon** (M1 or newer) | [Roadie Signal 0.3.1 for macOS](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/tag/macos-v0.3.1-test.1) | OBS 32.2 or newer |
 | **Intel Mac** | Not supported yet | |
 
@@ -127,15 +127,36 @@ Roadie's _Take an OBS screenshot_ step no longer needs Firebot. See the [changel
 30.0.0 and 32.0.4. **Tested in OBS by t4c0 on 2026-11-04: it works.** An update from 1.0.0 to a
 later release, and a rollback, can first be tried once that release is published. The macOS build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
 
-### Releasing a core
+### Two numbers: the OBS plugin and the Roadie connector
+
+Since 1.1.0 (t4c0, 2026-11-08) the two parts have their own numbers, and Tools → Roadie Signal…
+and the dock's gear show both.
+
+- **OBS plugin** (the loader, `ROADIE_SIGNAL_LOADER_VERSION` in `CMakeLists.txt`): what people
+  install by hand. It changes only when a change needs a reinstall, which should be rare.
+- **Roadie connector** (the core, the project version): what the Update button downloads. Every
+  release raises it. It keeps the `x.y.z` form and the `v<x.y.z>` tag, because that is how the
+  1.0.0 updater finds a release.
+
+**Most new OBS features need no connector release at all.** `obs-request` runs any obs-websocket
+request but a short block list (see [docs/bridge-protocol.md](docs/bridge-protocol.md#commands)), so
+Roadie can read and change OBS in new ways with a Roadie deploy alone. A connector release is for
+what obs-websocket cannot do.
+
+### Releasing a connector
 
 ```powershell
-node scripts/sign-core.mjs <version> <platform> <core> <out>
+node scripts/release.mjs prepare   # with ROADIE_SIGNAL_SIGNING_KEY set
+# read releases/v<version>/README.md, then commit releases/v<version>
+node scripts/release.mjs publish   # with GITHUB_TOKEN set
 ```
 
-With `ROADIE_SIGNAL_SIGNING_KEY` set (from the KB's `.secrets`), this writes the three release
-files: the manifest, its signature and the core. It refuses a key that does not match the one
-built into the plugin.
+`prepare` builds from a clean tree, signs the core with `sign-core.mjs` (which refuses a key that
+does not match the one built into the plugin), and writes `releases/v<version>/`, with notes taken
+from the version's CHANGELOG section. `publish` tags that commit, pushes `main` and the tag,
+creates the GitHub release with its files, and downloads the three update files back to check them.
+Roadie reads the newest release from GitHub, so docks offer Update as soon as it is published. Both
+keys come from the KB's `.secrets` through the environment, never as arguments.
 
 ## Settings
 

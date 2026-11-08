@@ -3,6 +3,8 @@
 #include "crash-reports.hpp"
 #include "obs-commands.hpp"
 #include "obs-layout.hpp"
+#include "obs-request.hpp"
+#include "versions.hpp"
 #include "stream-health.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
@@ -374,6 +376,10 @@ void SignalDock::runCommand(const QJsonObject &command)
     // 1.1.0: get-layout's answer.
     if (outcome.contains("layout"))
       result["layout"] = outcome.value("layout");
+    // 1.1.0: obs-request's answer.
+    for (const char *key : {"response", "status", "comment"})
+      if (outcome.contains(key))
+        result[key] = outcome.value(key);
     if (outcome.value("ok").toBool())
       blog(LOG_INFO, "[roadie-signal] Roadie ran %s", action.toUtf8().constData());
   }
@@ -416,7 +422,11 @@ void SignalDock::publishState()
   frame["sessionId"] = sessionId_;
   frame["sequence"] = static_cast<double>(++stateSequence_);
   // Additive fields: receivers that predate them drop unknown keys.
-  frame["pluginVersion"] = QString::fromLatin1(ROADIE_SIGNAL_VERSION);
+  // pluginVersion stays the core's number, the one Roadie gates features and updates on: the Roadie
+  // connector. The OBS plugin people install by hand is the loader (t4c0, 2026-11-08).
+  frame["pluginVersion"] = connectorVersion();
+  frame["loaderVersion"] = loaderVersion();
+  frame["obsRequestBlocked"] = obsRequestBlocked();
   frame["obsVersion"] = QString::fromLatin1(obs_get_version_string());
   // 0.1.9: the scene names Roadie may switch to, and what this build can be asked.
   QJsonArray sceneNames;
@@ -485,7 +495,8 @@ void SignalDock::publishCrashReports()
     return;
   const QJsonObject frame{{"version", 1},
                           {"sessionId", sessionId_},
-                          {"pluginVersion", QString::fromLatin1(ROADIE_SIGNAL_VERSION)},
+                          {"pluginVersion", connectorVersion()},
+                          {"loaderVersion", loaderVersion()},
                           {"obsVersion", QString::fromLatin1(obs_get_version_string())},
                           {"reports", crashReports_}};
   dispatch("roadie:obs-crash", "roadieObsCrash", frame);

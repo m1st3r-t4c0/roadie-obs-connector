@@ -1,6 +1,7 @@
 #include "signal-dock.hpp"
 #include "scene-events.hpp"
 #include "obs-layout.hpp"
+#include "versions.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -441,9 +442,13 @@ void openSettings()
   dialog.setWindowTitle("Roadie Signal");
   auto *layout = new QVBoxLayout(&dialog);
 
-  QString text = QString("Roadie Signal %1 · OBS %2 · Qt %3\nBrowser: %4\nProduction: %5")
-                     .arg(ROADIE_SIGNAL_VERSION, obs_get_version_string(), qVersion(), browserStatus,
-                          pageStatus(0));
+  // Two numbers (t4c0, 2026-11-08): the OBS plugin installed by hand, and the Roadie connector the
+  // dock's Update button brings.
+  const QString loader = loaderVersion();
+  QString text = QString("OBS plugin %1 · Roadie connector %2\nOBS %3 · Qt %4\nBrowser: %5\nProduction: %6")
+                     .arg(loader.isEmpty() ? QStringLiteral("unknown") : loader, connectorVersion(),
+                          QString::fromUtf8(obs_get_version_string()), QString::fromUtf8(qVersion()),
+                          browserStatus, pageStatus(0));
   if (stagingBuilt())
     text += QString("\nStaging: %1").arg(pageStatus(1));
   auto *status = new QLabel(text, &dialog);

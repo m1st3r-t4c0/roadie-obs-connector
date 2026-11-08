@@ -3,10 +3,27 @@
 Windows release packages (DLL, ZIP, checksums, build report) are checked in under
 [`releases/`](releases). Protocol details are in [docs/bridge-protocol.md](docs/bridge-protocol.md).
 
-## 1.1.0 — where every source sits
+## 1.1.0 — any OBS request, and where every source sits
 
-Not released yet. For roadie `docs/specs/stage-attach-to-obs-source.md` (Attach Stage sources to OBS
-sources).
+Roadie connector 1.1.0; the OBS plugin (loader) stays 1.0.0. Tag `v1.1.0`. Delivered by the dock's
+**Update** button; nobody reinstalls.
+
+- **Two numbers** (t4c0, 2026-11-08). The **OBS plugin** is the loader people install by hand; it
+  keeps its own number (1.0.0) and changes only when a change needs a reinstall. The **Roadie
+  connector** is the core the Update button downloads; this release and every one after it raise
+  only that number. Tools → Roadie Signal… shows both, and `roadie:obs-state` sends the loader's as
+  `loaderVersion` (`pluginVersion` stays the connector's, the number updates and features key on).
+- **`obs-request`**: any obs-websocket request, run inside this OBS through obs-websocket's plugin
+  API, so a new OBS feature in Roadie needs no new connector (t4c0, 2026-11-08). No network and no
+  WebSocket password: the call never touches obs-websocket's server. Everything is allowed except a
+  block list: profiles, scene-collection switches, the stream service's settings and key, the canvas
+  size, writing files at a named path, and other plugins' vendor requests. The list is sent as
+  `obsRequestBlocked`.
+- **`scripts/release.mjs`**: `prepare` builds, signs and stages a release; `publish` tags it and
+  creates the GitHub release. Roadie reads the newest release from GitHub, so a connector release
+  needs no Roadie deploy.
+
+For roadie `docs/specs/stage-attach-to-obs-source.md` (Attach Stage sources to OBS sources):
 
 - **`get-layout`**: every source's rectangle on OBS's canvas in any scene, on air or not, including
   sources inside groups and nested scenes, and sources whose eye is off (t4c0, 2026-11-07).
