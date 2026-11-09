@@ -63,8 +63,12 @@ Portable OBS ignores ProgramData plugins.
 copies. Keep one `roadie-signal.dll` with its original name. Your OBS settings and scenes are
 untouched.
 
-**Update:** from 1.0.0, press **Update** in the dock when Roadie offers one; it applies the next
-time OBS starts. Coming from 0.3.x or earlier, install 1.0.0 by hand as above (both files).
+**Update:** from Roadie connector 1.1.1, press **Update** in the dock when Roadie offers one; it
+applies the next time OBS starts. **On connector 1.0.0 or 1.1.0, the Update button cannot work**
+(see the [1.1.1 changelog](CHANGELOG.md)), so update once by hand: close OBS, copy
+`roadie-signal-core.dll` from the latest ZIP's `data/obs-plugins/roadie-signal/core` over the one
+in your install's `core` folder (the table above), and start OBS. The OBS plugin file stays as it
+is. Coming from 0.3.x or earlier, install the latest release by hand as above (both files).
 **Uninstall** by closing OBS and removing both files. The Windows build is unsigned.
 
 ### After login and troubleshooting
@@ -124,8 +128,11 @@ Roadie's _Take an OBS screenshot_ step no longer needs Firebot. See the [changel
 
 **Status:** the loader's rollback rules (14 cases on headless libobs), the signature check and
 `sign-core.mjs` are tested, and both DLLs build against OBS 30.0.0 and pass the loader check on
-30.0.0 and 32.0.4. **Tested in OBS by t4c0 on 2026-11-04: it works.** An update from 1.0.0 to a
-later release, and a rollback, can first be tried once that release is published. The macOS build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
+30.0.0 and 32.0.4. **Tested in OBS by t4c0 on 2026-11-04: it works.** The Update button from
+1.0.0 to 1.1.0 failed in OBS on 2026-11-08 ("The plugin did not answer"): the command's target
+overwrote the message format's `version`, so 1.0.0 and 1.1.0 drop it. 1.1.1 fixes it and is the
+first connector the button can update; an update from 1.1.1 to a later release, and a rollback,
+are still to try in OBS. The macOS build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
 
 ### Two numbers: the OBS plugin and the Roadie connector
 
@@ -269,8 +276,9 @@ verification remains required:
    scene-collection changes and a stopped audio device.
 5. Confirm no audio reaches login/OAuth/other-origin or other-path pages, and that unload/shutdown
    removes callbacks and destroys the browser safely.
-6. 1.0.0: installed and working in OBS (t4c0, 2026-11-04). Still to try: an update to the next
-   release, and a rollback.
+6. 1.0.0: installed and working in OBS (t4c0, 2026-11-04). The Update button cannot update 1.0.0
+   or 1.1.0 (fixed in 1.1.1). Still to try: an update from 1.1.1 to the next release, and a
+   rollback.
 
 ## Repository boundary
 
