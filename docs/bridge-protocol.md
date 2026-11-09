@@ -144,7 +144,7 @@ seconds without one. A server not chosen under **Accept OBS changes from** is an
 | 0.3.0 | `set-mute` | `input`, `muted` |
 | 0.3.0 | `set-filter` | `source`, `filter`, `enabled` |
 | 1.0.0 | `take-screenshot` | `source`, `format` (`png` or `jpg`), `width` (16–1920) |
-| 1.0.0 | `update-plugin` | `version` |
+| 1.0.0 | `update-plugin` | `target` from 1.1.1 (listed as `update-core`). 1.0.0 and 1.1.0 read `version`, the same key as the message format, so they drop every update-plugin; they are updated by hand. |
 | 1.0.0 | `revert-plugin` | |
 | 1.1.0 | `get-layout` | `scene` (optional). No scene reads the one on air; any scene in OBS's list can be named, on air or not. |
 | 1.1.0 | `obs-request` | `requestType` (an obs-websocket request name), `requestData` (optional object, at most 64 KB). |

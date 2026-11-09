@@ -3,6 +3,20 @@
 Windows release packages (DLL, ZIP, checksums, build report) are checked in under
 [`releases/`](releases). Protocol details are in [docs/bridge-protocol.md](docs/bridge-protocol.md).
 
+## 1.1.1 — the Update button works
+
+Roadie connector 1.1.1; the OBS plugin (loader) stays 1.0.0.
+
+- **Fixed: Update never reached the plugin.** `update-plugin` carried the version to update to as
+  `version`, the same key as the message format (always 1). The page's target overwrote it, and the
+  plugin dropped every update command as malformed, so the dock said the plugin did not answer.
+  The target is now `target`, and `update-core` in the capabilities tells the dock this build reads
+  it. **1.0.0 and 1.1.0 cannot be updated from the dock: install 1.1.1 by hand once** (both files, as
+  for 1.0.0); every update after it is one click (t4c0, 2026-11-08).
+
+Tested: both DLLs build against OBS 30.0.0 with no warnings and pass the loader check against 30.0.0
+and 32.0.4. **Not tested in OBS yet.**
+
 ## 1.1.0 — any OBS request, and where every source sits
 
 Roadie connector 1.1.0; the OBS plugin (loader) stays 1.0.0. Tag `v1.1.0`. Delivered by the dock's

@@ -304,7 +304,8 @@ QJsonArray obsCommandCapabilities()
                     QStringLiteral("set-text"), QStringLiteral("set-mute"), QStringLiteral("set-filter"),
                     QStringLiteral("take-screenshot"), QStringLiteral("get-layout"), QStringLiteral("obs-request"),
                     QStringLiteral("update-plugin"),
-                    QStringLiteral("revert-plugin")};
+                    // 1.1.1: update-plugin takes `target`, so the dock's Update button works.
+                    QStringLiteral("update-core"), QStringLiteral("revert-plugin")};
 }
 
 QJsonObject runObsCommand(const QJsonObject &command)

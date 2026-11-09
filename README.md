@@ -104,7 +104,7 @@ Updated cores go in OBS's config folder for the plugin, `plugin_config/roadie-si
 with `update.json` beside them recording which core runs, which waits for the next start, the last
 one that ran fine, and any start in progress.
 
-**Update.** The dock sends `update-plugin { version }`. The core downloads
+**Update.** The dock sends `update-plugin { target }` (1.1.1 and later, which list `update-core`; 1.0.0 and 1.1.0 read the target from the message's own `version` field and so never accept it, and are updated by hand once). The core downloads
 `manifest-<platform>.json`, its `.sig`, and the core named in the manifest from this repo's GitHub
 release `v<version>`, using the system's own `curl` (OBS ships Qt's network library without TLS).
 It checks the manifest's ECDSA P-256 signature against the key built into the plugin

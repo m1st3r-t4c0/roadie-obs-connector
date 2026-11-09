@@ -350,8 +350,13 @@ void SignalDock::runCommand(const QJsonObject &command)
   } else if (action == QLatin1String("update-plugin")) {
     // 1.0.0 (obs-plugin.md §24.2): the streamer pressed Update. Answered now; the download goes on
     // and reports through roadie:obs-update to this dock, if it is still open.
+    //
+    // 1.1.1: the version to update to is `target`. Until now it was `version`, the same key as the
+    // message format (always 1), so the page's target overwrote the format number and every
+    // update-plugin was dropped as malformed: 1.0.0 and 1.1.0 can never be updated from the dock.
+    // `update-core` in the capabilities says this build reads `target` (t4c0, 2026-11-08).
     QPointer<SignalDock> self(this);
-    const QString error = startCoreUpdate(command.value("version").toString(), [self](const QJsonObject &detail) {
+    const QString error = startCoreUpdate(command.value("target").toString(), [self](const QJsonObject &detail) {
       if (self)
         self->dispatch("roadie:obs-update", "roadieObsUpdate", detail);
     });
