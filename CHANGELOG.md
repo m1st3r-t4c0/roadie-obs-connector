@@ -5,17 +5,15 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
 
 ## 1.1.1 — the Update button works
 
-Roadie connector 1.1.1; the OBS plugin (loader) stays 1.0.0.
+- **Fixed: the dock's Update button.** On connector 1.0.0 and 1.1.0, pressing Update ended with "The
+  plugin did not answer". From 1.1.1, Update downloads the new connector and it runs the next time
+  OBS starts. Coming from 1.0.0 or 1.1.0, update by hand once (see **Update** below); every update
+  after that is the button.
+- Two ZIPs from now on: one for OBS 33 and newer, one for OBS 30 to 32, each laid out as the folder
+  you extract it into.
 
-- **Fixed: Update never reached the plugin.** `update-plugin` carried the version to update to as
-  `version`, the same key as the message format (always 1). The page's target overwrote it, and the
-  plugin dropped every update command as malformed, so the dock said the plugin did not answer.
-  The target is now `target`, and `update-core` in the capabilities tells the dock this build reads
-  it. **1.0.0 and 1.1.0 cannot be updated from the dock: install 1.1.1 by hand once** (both files, as
-  for 1.0.0); every update after it is one click (t4c0, 2026-11-08).
-
-Tested: both DLLs build against OBS 30.0.0 with no warnings and pass the loader check against 30.0.0
-and 32.0.4. **Not tested in OBS yet.**
+For developers: the dock's `update-plugin` command now carries its target as `target`, because
+`version` is the message format's own field. Connectors that read it list `update-core`.
 
 ## 1.1.0 — any OBS request, and where every source sits
 

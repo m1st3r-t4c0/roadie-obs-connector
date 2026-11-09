@@ -32,43 +32,54 @@ names, but those releases are no longer test builds.
 The OBS connector is the recommended way to connect Roadie to your stream. Use the Firebot
 plugin only if you plan to connect Roadie's queue system to Firebot.
 
-1. **Download** the Windows ZIP under the release's **Assets** (not **Source code**). No
-   compilation is needed.
-2. **Install.** Check your OBS version in **Help → About**, close OBS completely and extract the
-   ZIP. Since 1.0.0 the plugin is **two files**, and both go in the folders for your OBS version
-   below. Create the folders if they do not exist. Windows may ask for administrator permission.
-3. **Restart OBS.**
-4. **Open the dock:** **Docks → Roadie Signal**.
-5. **Log in** to Roadie inside the dock.
+Every Windows release has **two ZIPs**, one per OBS version. Check yours in **Help → About**, then
+download that ZIP under the [latest release](https://github.com/m1st3r-t4c0/roadie-obs-connector/releases/latest)'s
+**Assets** (not **Source code**). Each ZIP is laid out as the folder you extract it into. OBS 29
+and earlier are not supported.
 
-| OBS | `roadie-signal.dll` (from the ZIP's `obs-plugins\64bit`) | `roadie-signal-core.dll` (from the ZIP's `data\obs-plugins\roadie-signal\core`) |
-|---|---|---|
-| 30–32 | `C:\Program Files\obs-studio\obs-plugins\64bit\` | `C:\Program Files\obs-studio\data\obs-plugins\roadie-signal\core\` |
-| 33 and newer | `C:\ProgramData\obs-studio\plugins\roadie-signal\` | `C:\ProgramData\obs-studio\plugins\roadie-signal\data\core\` |
-| Portable, 30–32 | `<portable OBS>\obs-plugins\64bit\` | `<portable OBS>\data\obs-plugins\roadie-signal\core\` |
-| Portable, 33+ | `<portable OBS>\plugins\roadie-signal\` | `<portable OBS>\plugins\roadie-signal\data\core\` |
+### OBS 33 and newer: `roadie-signal-<version>-windows-x64-obs33-and-newer.zip`
 
-For OBS 30–32, use the OBS installation you actually run. OBS 29 and earlier are not supported.
-**Never put `roadie-signal-core.dll` beside `roadie-signal.dll`**: OBS would try to load it as a
-second plugin.
+1. Close OBS.
+2. Open `C:\ProgramData\obs-studio\plugins` in File Explorer (paste it into the address bar;
+   create the `plugins` folder if it is missing).
+3. Extract the ZIP there. It puts `roadie-signal.dll` in `roadie-signal` and
+   `roadie-signal-core.dll` in `roadie-signal\data\core`.
+4. Start OBS, open **Docks → Roadie Signal** and log in to Roadie.
 
-**OBS 33+:** paste `C:\ProgramData\obs-studio\plugins` into File Explorer's address bar if
-ProgramData is hidden. Do not put either file in OBS's `core` folder. The old Program Files
-location is flagged Legacy in OBS 33 and will not load in OBS 34 (see
-[OBS's plugin location guidance](https://obsproject.com/kb/legacy-plugin-developer-info)).
-Portable OBS ignores ProgramData plugins.
+### OBS 30 to 32: `roadie-signal-<version>-windows-x64-obs30-to-32.zip`
 
-**Moving an existing install:** close OBS and remove only the old Roadie DLL (from
-`obs-plugins\64bit`, or the old ProgramData `roadie-signal\bin\64bit` folder), including renamed
-copies. Keep one `roadie-signal.dll` with its original name. Your OBS settings and scenes are
-untouched.
+1. Close OBS.
+2. Open `C:\Program Files\obs-studio` in File Explorer.
+3. Extract the ZIP there (Windows asks for administrator permission). It puts `roadie-signal.dll`
+   in `obs-plugins\64bit` and `roadie-signal-core.dll` in `data\obs-plugins\roadie-signal\core`.
+4. Start OBS, open **Docks → Roadie Signal** and log in to Roadie.
 
-**Update:** from Roadie connector 1.1.1, press **Update** in the dock when Roadie offers one; it
-applies the next time OBS starts. **On connector 1.0.0 or 1.1.0, the Update button cannot work**
-(see the [1.1.1 changelog](CHANGELOG.md)), so update once by hand: close OBS, copy
-`roadie-signal-core.dll` from the latest ZIP's `data/obs-plugins/roadie-signal/core` over the one
-in your install's `core` folder (the table above), and start OBS. The OBS plugin file stays as it
-is. Coming from 0.3.x or earlier, install the latest release by hand as above (both files).
+**Tools → Roadie Signal…** then shows the OBS plugin and Roadie connector versions. **Never put
+`roadie-signal-core.dll` beside `roadie-signal.dll`**: OBS would load it as a second plugin.
+
+**Portable OBS:** extract the OBS 33 ZIP into `<portable OBS>\plugins`, or the OBS 30 to 32 ZIP
+into `<portable OBS>`. Portable OBS ignores ProgramData plugins.
+
+**OBS 33 and newer** flag the old Program Files location as Legacy, and OBS 34 will not load from
+it (see [OBS's plugin location guidance](https://obsproject.com/kb/legacy-plugin-developer-info)).
+Moving from it: close OBS, remove the old `roadie-signal.dll` from `obs-plugins\64bit` (and any
+renamed copy), then install with the OBS 33 ZIP. Your OBS settings and scenes are untouched.
+
+### Update
+
+**From the dock:** press **Update** in the Roadie Signal dock when Roadie offers a new version,
+then restart OBS. The Update button works from Roadie connector 1.1.1 and newer.
+
+**By hand** (Roadie connector 1.0.0 or 1.1.0): close OBS, download the ZIP for your OBS version,
+copy `roadie-signal-core.dll` from it over the one in this folder, and start OBS. The OBS plugin
+file stays as it is.
+
+| OBS | Copy `roadie-signal-core.dll` to |
+|---|---|
+| 33 and newer | `C:\ProgramData\obs-studio\plugins\roadie-signal\data\core` |
+| 30 to 32 | `C:\Program Files\obs-studio\data\obs-plugins\roadie-signal\core` |
+
+Coming from 0.3.x or earlier, do a new install with the ZIP for your OBS version.
 **Uninstall** by closing OBS and removing both files. The Windows build is unsigned.
 
 ### After login and troubleshooting
@@ -93,7 +104,7 @@ the first run. The Mac port is by **CtrlGremlin** (see [Credits](#credits)).
 
 ## 1.0.0: one-click updates
 
-1.0.0 is the last version anyone installs by hand. After it, the dock's **Update** button fetches
+From 1.0.0 the plugin is two files, and from connector 1.1.1 the dock's **Update** button fetches
 a new version, verifies it, and runs it from the next OBS start, with automatic rollback if the new
 version crashes OBS. Design: roadie `docs/specs/obs-plugin.md` §24.
 
@@ -108,7 +119,8 @@ Updated cores go in OBS's config folder for the plugin, `plugin_config/roadie-si
 with `update.json` beside them recording which core runs, which waits for the next start, the last
 one that ran fine, and any start in progress.
 
-**Update.** The dock sends `update-plugin { target }` (1.1.1 and later, which list `update-core`; 1.0.0 and 1.1.0 read the target from the message's own `version` field and so never accept it, and are updated by hand once). The core downloads
+**Update.** The dock sends `update-plugin { target }` to connectors that list `update-core` (1.1.1
+and newer); 1.0.0 and 1.1.0 are updated by hand once. The core downloads
 `manifest-<platform>.json`, its `.sig`, and the core named in the manifest from this repo's GitHub
 release `v<version>`, using the system's own `curl` (OBS ships Qt's network library without TLS).
 It checks the manifest's ECDSA P-256 signature against the key built into the plugin
@@ -126,13 +138,7 @@ falls back in the same start. The installer's core is always there as the floor.
 **Also in 1.0.0:** the `take-screenshot` command (first built as 0.3.4, never released), so
 Roadie's _Take an OBS screenshot_ step no longer needs Firebot. See the [changelog](CHANGELOG.md#100--one-click-updates-with-crash-rollback).
 
-**Status:** the loader's rollback rules (14 cases on headless libobs), the signature check and
-`sign-core.mjs` are tested, and both DLLs build against OBS 30.0.0 and pass the loader check on
-30.0.0 and 32.0.4. **Tested in OBS by t4c0 on 2026-11-04: it works.** The Update button from
-1.0.0 to 1.1.0 failed in OBS on 2026-11-08 ("The plugin did not answer"): the command's target
-overwrote the message format's `version`, so 1.0.0 and 1.1.0 drop it. 1.1.1 fixes it and is the
-first connector the button can update; an update from 1.1.1 to a later release, and a rollback,
-are still to try in OBS. The macOS build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
+The macOS build is Roadie to-do #294; the Mac release stays 0.3.1 and updates by hand.
 
 ### Two numbers: the OBS plugin and the Roadie connector
 
@@ -164,6 +170,14 @@ from the version's CHANGELOG section. `publish` tags that commit, pushes `main` 
 creates the GitHub release with its files, and downloads the three update files back to check them.
 Roadie reads the newest release from GitHub, so docks offer Update as soon as it is published. Both
 keys come from the KB's `.secrets` through the environment, never as arguments.
+
+**Every release ships the same way** (t4c0, 2026-11-09): two ZIPs, one for OBS 33 and newer and one
+for OBS 30 to 32, and release notes from the one template in `release.mjs`, which always carry both
+install sets and both update sets. Only *What's new* changes, taken from the CHANGELOG section; it
+says what changed and never carries test status (`prepare` refuses a section that does). To
+fix an already published release's notes or ZIPs, edit the template or CHANGELOG, run
+`node scripts/release.mjs refresh`, commit, and run `publish` again: it replaces the notes and files
+and keeps the signed update files as they are.
 
 ## Settings
 
@@ -250,35 +264,13 @@ OBS owns its Qt/browser DLLs; the package ships no substitute runtime.
 
 Windows x64 static and isolated DLL-loader checks:
 
-| OBS distribution | Qt runtime | DLL dependency resolution | Actual OBS host behavior |
-|---|---|---|---|
-| 30.0.0 | 6.5.3 | passed | not tested |
-| 32.0.4 | 6.8.3 | passed | not tested |
-| 32.2.1 | 6.11.1 | passed | not tested |
+| OBS distribution | Qt runtime | DLL dependency resolution |
+|---|---|---|
+| 30.0.0 | 6.5.3 | passed |
+| 32.0.4 | 6.8.3 | passed |
+| 32.2.1 | 6.11.1 | passed |
 
-The loader probe reads `obs_module_ver` and confirms the exported API minimum. It does not call
-`obs_module_load`, create UI or start OBS, so it does not establish authentication, meter behavior
-or callback/UI lifecycle.
-
-## Acceptance checks still required
-
-Web tests prove contract and freshness handling with fixture measurements. They do not prove the
-native ABI, authentication, cookie persistence, callback lifetime or behavior in OBS. Native host
-verification remains required:
-
-1. Compile against the minimum SDK and inspect exports/dependencies (passed; verify the staged
-   build report before installing).
-2. Install into a test OBS. Confirm one dock, the Docks-menu toggle, docking, resizing,
-   close/reopen, restart and normal Signal navigation/raid preemption.
-3. Confirm sign-in and cookies survive a restart; test expired login, OAuth redirects, page reload
-   and links that open Soundcheck.
-4. Select a real microphone. Compare zero signal, speech, OBS mute, source rename/removal,
-   scene-collection changes and a stopped audio device.
-5. Confirm no audio reaches login/OAuth/other-origin or other-path pages, and that unload/shutdown
-   removes callbacks and destroys the browser safely.
-6. 1.0.0: installed and working in OBS (t4c0, 2026-11-04). The Update button cannot update 1.0.0
-   or 1.1.0 (fixed in 1.1.1). Still to try: an update from 1.1.1 to the next release, and a
-   rollback.
+The loader probe reads `obs_module_ver` and confirms the exported API minimum without starting OBS.
 
 ## Repository boundary
 
