@@ -1,0 +1,13 @@
+{
+    "obsVersion":  "30.0.0",
+    "qtVersion":  "6.5.3",
+    "compiler":  "MSVC 19.44.35229.0",
+    "origin":  "https://dashboard.roadie.gg",
+    "stagingOrigin":  "https://staging.roadie.gg",
+    "dllSha256":  "17a93bc6ac338885ac41e5de2c53422439a3a138a39d29f30861ea8f0a1bef09",
+    "coreSha256":  "bd865cd5881355e6a69ee4e4c5700ea0a1b38cd972ddfb2280cd36eb446a0579",
+    "hostTested":  false,
+    "sourceCommit":  "2b684ade8a9b680b57ca1b1c95c1b801f3742570",
+    "sourceDirty":  false,
+    "obsDllSha256":  "841151f250d159b3839b3465406b65f7d7a36d0091964912debb7367cd630171"
+}

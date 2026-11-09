@@ -53,7 +53,7 @@ function notesFromChangelog() {
     '',
     `Tag: \`${tag}\`. Windows x64, minimum OBS ${lock.obsVersion}. OBS plugin (loader) ${loader}.`,
     '',
-    `**On OBS plugin 1.0.0 or newer?** Press **Update** in the Roadie Signal dock when Roadie offers`,
+    `**On Roadie connector 1.1.1 or newer?** Press **Update** in the Roadie Signal dock when Roadie offers`,
     `${version}, then restart OBS. Nothing to download by hand.`,
     '',
     '## What is new',
