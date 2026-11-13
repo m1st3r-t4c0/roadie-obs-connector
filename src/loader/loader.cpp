@@ -173,15 +173,13 @@ void writeState(obs_data_t *state)
 
 void *openLibrary(const std::string &path)
 {
-  if (path.empty() || !os_file_exists(path.c_str()))
-    return nullptr;
 #ifdef _WIN32
-  const int size = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
-  std::wstring wide(size > 0 ? static_cast<size_t>(size) : 0, L'\0');
-  if (size <= 0 || !MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, wide.data(), size))
-    return nullptr;
-  // The core's own folder is searched for anything it needs; OBS's DLLs are already loaded.
-  return LoadLibraryExW(wide.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+  // Load the core exactly as the running OBS loads a plugin. OBS 32.2.0 locked down the DLL search
+  // (SetDefaultDllDirectories, obs-studio PR #11569), and a relative path with
+  // LOAD_WITH_ALTERED_SEARCH_PATH then fails with error 87. os_dlopen makes the path absolute and
+  // uses the matching search flags there, and keeps the old behavior on OBS 30 to 32.1. On failure
+  // it logs the Windows error itself.
+  return os_dlopen(path.c_str());
 #else
   return dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
 #endif
@@ -190,7 +188,7 @@ void *openLibrary(const std::string &path)
 void *symbol(void *handle, const char *name)
 {
 #ifdef _WIN32
-  return reinterpret_cast<void *>(GetProcAddress(static_cast<HMODULE>(handle), name));
+  return os_dlsym(handle, name);
 #else
   return dlsym(handle, name);
 #endif
@@ -199,7 +197,7 @@ void *symbol(void *handle, const char *name)
 void closeLibrary(void *handle)
 {
 #ifdef _WIN32
-  FreeLibrary(static_cast<HMODULE>(handle));
+  os_dlclose(handle);
 #else
   dlclose(handle);
 #endif
@@ -208,9 +206,15 @@ void closeLibrary(void *handle)
 // Opens one core and finds its entry points. False leaves nothing open.
 bool open(const std::string &version, Core &out)
 {
-  void *handle = openLibrary(corePath(version));
+  const std::string path = corePath(version);
+  if (path.empty() || !os_file_exists(path.c_str())) {
+    blog(LOG_WARNING, "[roadie-signal] core %s not found%s%s", version.c_str(), path.empty() ? "" : " at ",
+         path.c_str());
+    return false;
+  }
+  void *handle = openLibrary(path);
   if (!handle) {
-    blog(LOG_WARNING, "[roadie-signal] core %s did not load", version.c_str());
+    blog(LOG_WARNING, "[roadie-signal] core %s did not load from %s", version.c_str(), path.c_str());
     return false;
   }
   auto setPointer = reinterpret_cast<SetPointerFn>(symbol(handle, "obs_module_set_pointer"));

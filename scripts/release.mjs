@@ -51,6 +51,21 @@ const loader = cmake.match(/set\(ROADIE_SIGNAL_LOADER_VERSION "(\d+\.\d+\.\d+)"\
 const tag = `v${version}`;
 const out = join(repo, 'releases', tag);
 
+// A release that raises the OBS plugin (loader) number needs a hand reinstall of both files: the
+// dock's Update button only replaces the core. The previous loader comes from the newest earlier
+// release's notes.
+const semver = (name) => name.match(/^v(\d+)\.(\d+)\.(\d+)$/)?.slice(1).map(Number);
+const compare = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+const previousTag = readdirSync(join(repo, 'releases'))
+  .filter((name) => semver(name) && compare(semver(name), semver(tag)) < 0)
+  .sort((a, b) => compare(semver(a), semver(b)))
+  .pop();
+const previousNotes = previousTag ? join(repo, 'releases', previousTag, 'README.md') : '';
+const previousLoader = previousNotes && existsSync(previousNotes)
+  ? readFileSync(previousNotes, 'utf8').match(/OBS plugin (\d+\.\d+\.\d+)/)?.[1]
+  : undefined;
+const loaderChanged = previousLoader !== undefined && previousLoader !== loader;
+
 /** The two ZIPs. Each is laid out as the folder it is extracted into. */
 const zips = {
   obs33: {
@@ -115,16 +130,30 @@ function notes() {
     '',
     '## Update',
     '',
-    `**From the dock:** press **Update** in the Roadie Signal dock when Roadie offers ${version}, then restart OBS.`,
-    `The Update button works from Roadie connector 1.1.1 and newer.`,
-    '',
-    `**By hand** (Roadie connector 1.0.0 or 1.1.0): close OBS, download the ZIP for your OBS version below,`,
-    `copy \`roadie-signal-core.dll\` from it over the one in this folder, and start OBS. The OBS plugin file stays as it is.`,
-    '',
-    '| OBS | Copy `roadie-signal-core.dll` to |',
-    '|---|---|',
-    `| ${zip33.label} | \`${zip33.into}\\${folderOf(zip33.core)}\` |`,
-    `| ${zip30.label} | \`${zip30.into}\\${folderOf(zip30.core)}\` |`,
+    ...(loaderChanged
+      ? [
+          `**This release changes the OBS plugin (${previousLoader} to ${loader}), so everyone updates by hand once:**`,
+          `close OBS, download the ZIP for your OBS version below, extract it into the same folder as a new install`,
+          `and let it replace both files, then start OBS. The dock's **Update** button changes only the Roadie`,
+          `connector, never the OBS plugin.`,
+          '',
+          '| OBS | Extract the ZIP into |',
+          '|---|---|',
+          `| ${zip33.label} | \`${zip33.into}\` |`,
+          `| ${zip30.label} | \`${zip30.into}\` |`,
+        ]
+      : [
+          `**From the dock:** press **Update** in the Roadie Signal dock when Roadie offers ${version}, then restart OBS.`,
+          `The Update button works from Roadie connector 1.1.1 and newer.`,
+          '',
+          `**By hand** (Roadie connector 1.0.0 or 1.1.0): close OBS, download the ZIP for your OBS version below,`,
+          `copy \`roadie-signal-core.dll\` from it over the one in this folder, and start OBS. The OBS plugin file stays as it is.`,
+          '',
+          '| OBS | Copy `roadie-signal-core.dll` to |',
+          '|---|---|',
+          `| ${zip33.label} | \`${zip33.into}\\${folderOf(zip33.core)}\` |`,
+          `| ${zip30.label} | \`${zip30.into}\\${folderOf(zip30.core)}\` |`,
+        ]),
     '',
     '## New install',
     '',
@@ -162,8 +191,15 @@ function installText(zip) {
     'New install:',
     ...installSteps(zip),
     '',
-    `Update by hand (Roadie connector 1.0.0 or 1.1.0): close OBS, copy roadie-signal-core.dll from this ZIP`,
-    `into ${zip.into}\\${folderOf(zip.core)}, and start OBS.`,
+    ...(loaderChanged
+      ? [
+          `Update (everyone, once: this release changes the OBS plugin from ${previousLoader} to ${loader}):`,
+          `close OBS, extract this ZIP into ${zip.into} and let it replace both files, then start OBS.`,
+        ]
+      : [
+          `Update by hand (Roadie connector 1.0.0 or 1.1.0): close OBS, copy roadie-signal-core.dll from this ZIP`,
+          `into ${zip.into}\\${folderOf(zip.core)}, and start OBS.`,
+        ]),
     '',
     `Release notes: https://github.com/${owner}/${name}/releases/tag/${tag}`,
     '',

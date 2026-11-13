@@ -3,6 +3,17 @@
 Windows release packages (DLL, ZIP, checksums, build report) are checked in under
 [`releases/`](releases). Protocol details are in [docs/bridge-protocol.md](docs/bridge-protocol.md).
 
+## 1.1.2 — loads on OBS 32.2
+
+- **Fixed: the dock never appeared on OBS 32.2 and newer.** OBS 32.2.0 changed how Windows looks
+  for DLLs, and OBS plugin 1.0.0 could no longer open its connector. The OBS log said `core bundled
+  did not load` and `no core could be loaded`. OBS plugin 1.0.1 loads the connector the same way
+  OBS loads its own plugins, on every OBS from 30 on.
+- **Reinstall once, by hand.** The fix is in the OBS plugin file, and the Update button only replaces
+  the connector. Close OBS and extract the ZIP for your OBS version as for a new install.
+- When the connector cannot load, the OBS log now says whether the file is missing or Windows
+  refused it, with the path and the Windows error.
+
 ## 1.1.1 — the Update button works
 
 - **Fixed: the dock's Update button.** On connector 1.0.0 and 1.1.0, pressing Update ended with "The

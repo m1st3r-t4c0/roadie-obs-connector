@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(roadie-signal VERSION 1.1.1 LANGUAGES CXX)
+project(roadie-signal VERSION 1.1.2 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -46,7 +46,7 @@ target_link_libraries(roadie-signal PRIVATE OBS::libobs)
 # Two numbers (t4c0, 2026-11-08). The project version is the Roadie connector, the core the dock's
 # Update button downloads. The OBS plugin, the loader people install by hand, keeps its own number and
 # changes only when a change needs a reinstall.
-set(ROADIE_SIGNAL_LOADER_VERSION "1.0.0")
+set(ROADIE_SIGNAL_LOADER_VERSION "1.0.1")
 target_compile_definitions(roadie-signal PRIVATE ROADIE_SIGNAL_VERSION="${ROADIE_SIGNAL_LOADER_VERSION}")
 target_compile_definitions(roadie-signal-core PRIVATE ROADIE_SIGNAL_VERSION="${PROJECT_VERSION}")
 foreach(target roadie-signal roadie-signal-core)

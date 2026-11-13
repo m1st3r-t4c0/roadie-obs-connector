@@ -67,6 +67,12 @@ renamed copy), then install with the OBS 33 ZIP. Your OBS settings and scenes ar
 
 ### Update
 
+**OBS plugin 1.0.1 (connector 1.1.2) is a reinstall for everyone.** On OBS 32.2 and newer, OBS
+plugin 1.0.0 cannot load its connector, so the dock never appears and the OBS log says
+`no core could be loaded`. Close OBS and extract the 1.1.2 ZIP for your OBS version as for a new
+install, letting it replace both files. The Update button cannot do this: it only replaces the
+connector, never the OBS plugin.
+
 **From the dock:** press **Update** in the Roadie Signal dock when Roadie offers a new version,
 then restart OBS. The Update button works from Roadie connector 1.1.1 and newer.
 
