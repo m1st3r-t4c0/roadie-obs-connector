@@ -13,6 +13,10 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
   the connector. Close OBS and extract the ZIP for your OBS version as for a new install.
 - When the connector cannot load, the OBS log now says whether the file is missing or Windows
   refused it, with the path and the Windows error.
+- **Fixed: OBS could crash on Windows while the dock page reloaded or a dialog was open** (Roadie
+  #304). The connector now waits until the dock page has loaded again, any dialog has closed, and
+  never calls into a page that is closing. Audio and status updates in that moment are skipped;
+  command results wait and go once the page is ready.
 
 ## 1.1.1 — the Update button works
 

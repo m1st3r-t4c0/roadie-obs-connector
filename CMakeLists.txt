@@ -38,7 +38,7 @@ endif()
 # - roadie-signal-core, the core: the plugin itself, which the loader loads and the streamer can
 #   update with one press. The installer's core sits in the plugin's data folder, never beside the
 #   loader, so OBS never loads it as a second plugin.
-add_library(roadie-signal-core MODULE src/plugin.cpp src/obs-request.cpp src/obs-request.hpp src/versions.cpp src/versions.hpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp src/obs-commands.cpp src/obs-commands.hpp src/obs-layout.cpp src/obs-layout.hpp src/core-update.cpp src/core-update.hpp src/update-key.hpp src/update-verify.cpp src/update-verify.hpp)
+add_library(roadie-signal-core MODULE src/plugin.cpp src/obs-request.cpp src/obs-request.hpp src/versions.cpp src/versions.hpp src/scene-events.cpp src/scene-events.hpp src/signal-dock.cpp src/signal-dock.hpp src/script-gate.hpp src/audio-tap.cpp src/audio-tap.hpp src/stream-health.cpp src/stream-health.hpp src/crash-reports.cpp src/crash-reports.hpp src/obs-commands.cpp src/obs-commands.hpp src/obs-layout.cpp src/obs-layout.hpp src/core-update.cpp src/core-update.hpp src/update-key.hpp src/update-verify.cpp src/update-verify.hpp)
 target_include_directories(roadie-signal-core PRIVATE "${OBS_BROWSER_PANEL_INCLUDE_DIR}")
 target_link_libraries(roadie-signal-core PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets)
 add_library(roadie-signal MODULE src/loader/loader.cpp)

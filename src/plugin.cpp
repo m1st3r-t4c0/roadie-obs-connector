@@ -90,9 +90,9 @@ int acceptFrom = Production;
 // calling into its page crashes OBS on every quit. Closing OBS's main window pauses script delivery
 // to the dock pages until the main window is active again with no dialog open (a cancelled quit).
 // Closing any other window pauses it for 3 s. Once shutdown has begun it never resumes.
-// Windows keeps its own path (prepareForShutdown at SCRIPTING_SHUTDOWN): no Windows crash report
-// has ever shown a call into the page during shutdown, and pausing under every dialog would drop
-// scene events and command results there for no gain.
+// Windows has no quit watcher (prepareForShutdown at SCRIPTING_SHUTDOWN), but since #304 it skips
+// calls into a page under a dialog or nested event loop, while the page loads and once it closes,
+// like macOS (script-gate.hpp, SignalDock::scriptsSafe). Command results wait for the page then.
 bool shuttingDown = false;
 bool mainClosing = false;
 int closeGeneration = 0;

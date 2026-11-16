@@ -13,6 +13,16 @@ control crashes with `0xc0000005` when CEF's nested loop processes that paint
 while the parent dock is partly destroyed. Pre-close completes successfully.
 This reproduces the failure mechanism, not the user's exact scene collection.
 
+The script-gate case (#304) calls `executeJavaScript` every 2 ms, the way the
+plugin's timers do, while the page reloads, moves to another site (a new
+renderer), sits under a nested `QDialog::exec()` loop, and after
+`closeBrowser()`. Mode `gate` sends every call through the plugin's own
+`ScriptGate` (`src/script-gate.hpp`); it must exit normally, drop calls in each
+of those states, resume once the page reports its title, and send nothing after
+close. Mode `ungated` is the old Windows path, run for comparison only: the
+instant CEF has no main frame is a race, and the isolated probe has not hit it,
+so it is not asserted to crash. `--skip-gate` leaves the case out.
+
 With the repository's pinned SDK and verified OBS fixtures already prepared:
 
 ```powershell

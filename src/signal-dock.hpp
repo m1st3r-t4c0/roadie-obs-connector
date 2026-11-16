@@ -1,5 +1,8 @@
 #pragma once
 #include "audio-tap.hpp"
+#include "script-gate.hpp"
+#include <QByteArray>
+#include <QList>
 #include <QPointer>
 #include <QJsonArray>
 #include <QElapsedTimer>
@@ -14,9 +17,9 @@ struct QCef;
 class QCefWidget;
 struct QCefCookieManager;
 
-// macOS quit-crash fix (v2): while OBS is closing, while a modal dialog is open (including
-// native macOS alerts), or from inside a nested event loop, the dock page may already be
-// gone. Script delivery to the pages pauses then.
+// While OBS is closing, while a modal dialog is open (including native macOS alerts), or from
+// inside a nested event loop, the dock page may already be gone. Script delivery to the pages
+// pauses then, on every platform (macOS since 0.3.3, Windows since #304).
 void roadieSetScriptsPaused(bool paused);
 // True when it is safe to call into the dock pages right now.
 bool roadieScriptsSafe();
@@ -56,12 +59,20 @@ private slots:
   void titleChanged(const QString &title);
 
 private:
+  // #304: while the page is not ready, a timer's frame is dropped and an answer the page waits
+  // for (a command result, a part's acknowledgement, update progress) is held.
+  enum class Delivery { Drop, Hold };
+  static constexpr int maxHeld = 32;
+  bool scriptsSafe() const;
+  void runScript(const QByteArray &script, Delivery delivery);
+  void deliverHeld();
   void publish();
   void commandPart(const QString &body);
   void commandJson(const QByteArray &json, const QString &expectedId = QString());
   void runCommand(const QJsonObject &command);
   void publishCrashReports();
-  void dispatch(const char *event, const char *marker, const QJsonObject &detail);
+  void dispatch(const char *event, const char *marker, const QJsonObject &detail,
+                Delivery delivery = Delivery::Drop);
   void signInIfSignedOut();
   const QString origin_;
   QPointer<QCefWidget> browser_;
@@ -75,6 +86,10 @@ private:
   QTimer cookieFlushTimer_;
   QTimer healthTimer_;
   QTimer layoutTimer_;
+  QTimer heldTimer_;
+  ScriptGate gate_;
+  QList<QByteArray> held_;
+  quint64 dropped_ = 0;
   QByteArray lastLayout_;
   int layoutQuiet_ = 0;
   quint64 layoutSequence_ = 0;

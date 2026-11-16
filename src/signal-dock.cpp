@@ -1,4 +1,5 @@
 #include "signal-dock.hpp"
+#include "script-gate.hpp"
 #include "core-update.hpp"
 #include "crash-reports.hpp"
 #include "obs-commands.hpp"
@@ -39,17 +40,17 @@ static bool scriptsPaused = false;
 
 void roadieSetScriptsPaused(bool paused) { scriptsPaused = paused; }
 
-// macOS: CEF can drop a browser's main frame while OBS closes (QCefWidget::executeJavaScript then
-// dereferences null). Never call into the page during shutdown, under a modal dialog, or from a
-// nested event loop: in normal running the main thread sits at loop level 1. Windows only ever
-// pauses through roadieSetScriptsPaused, which nothing there calls (see plugin.cpp).
+// CEF can be without a page's main frame (QCefWidget::executeJavaScript then dereferences null):
+// while OBS closes, under a modal dialog, and from a nested event loop. In normal running the main
+// thread sits at loop level 1. 0.3.3 checked this on macOS only; #304, #338 and #353 are the same
+// crash on Windows, so every platform checks it now (script-gate.hpp). Each page also checks its
+// own load state (SignalDock::scriptsSafe).
 bool roadieScriptsSafe()
 {
 #ifdef __APPLE__
-  return !scriptsPaused && QThread::currentThread()->loopLevel() <= 1 && !QApplication::activeModalWidget() &&
-         !QGuiApplication::modalWindow() && !nativeModalActive();
+  return !scriptsPaused && !ScriptGate::nestedOrModal() && !nativeModalActive();
 #else
-  return !scriptsPaused;
+  return !scriptsPaused && !ScriptGate::nestedOrModal();
 #endif
 }
 
@@ -117,6 +118,9 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
   // 1.1.0: four reads a second of the scene on air; only a change is sent (obs-layout.hpp).
   layoutTimer_.setInterval(250);
   connect(&layoutTimer_, &QTimer::timeout, this, [this] { publishLayout(); });
+  // #304: an answer that finds the page not ready waits here, and goes once it is.
+  heldTimer_.setInterval(250);
+  connect(&heldTimer_, &QTimer::timeout, this, [this] { deliverHeld(); });
   cookieFlushTimer_.setInterval(30000);
   connect(&cookieFlushTimer_, &QTimer::timeout, this, [this] {
     if (cookieManager_)
@@ -135,6 +139,45 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
 }
 
 bool SignalDock::initialized() const { return !browser_.isNull(); }
+
+bool SignalDock::scriptsSafe() const
+{
+  return browser_ && !shutdownPrepared_ && gate_.open() && roadieScriptsSafe();
+}
+
+void SignalDock::runScript(const QByteArray &script, Delivery delivery)
+{
+  if (scriptsSafe()) {
+    browser_->executeJavaScript(script.toStdString());
+    return;
+  }
+  // #304: a timer's frame is dropped; its next tick sends a fresh one. An answer the page waits
+  // for is held until the page is ready, unless the page loads anew (it no longer waits) or closes.
+  if (delivery == Delivery::Hold && !gate_.closed() && !shutdownPrepared_) {
+    if (held_.size() >= maxHeld)
+      held_.removeFirst();
+    held_.append(script);
+    heldTimer_.start();
+    return;
+  }
+  ++dropped_;
+}
+
+void SignalDock::deliverHeld()
+{
+  if (held_.isEmpty() || gate_.closed() || shutdownPrepared_) {
+    held_.clear();
+    heldTimer_.stop();
+    return;
+  }
+  if (!scriptsSafe())
+    return;
+  const QList<QByteArray> scripts = held_;
+  held_.clear();
+  heldTimer_.stop();
+  for (const QByteArray &script : scripts)
+    runScript(script, Delivery::Hold);
+}
 
 void SignalDock::setRoles(bool sends, bool obeys)
 {
@@ -170,9 +213,7 @@ void SignalDock::signInIfSignedOut()
       "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsState==='1')return;"
       "const a=document.querySelector('a[href^=\"/auth/twitch/login\"]');if(a)location.href=a.href;})()";
   lastSignIn_.start();
-  if (!roadieScriptsSafe())
-    return;
-  browser_->executeJavaScript(script.toStdString());
+  runScript(script, Delivery::Drop);
 }
 
 void SignalDock::reloadMicrophone()
@@ -184,6 +225,9 @@ void SignalDock::reloadMicrophone()
 
 SignalDock::~SignalDock()
 {
+  gate_.close();
+  held_.clear();
+  heldTimer_.stop();
   timer_.stop();
   stateTimer_.stop();
   healthTimer_.stop();
@@ -201,6 +245,10 @@ void SignalDock::prepareForShutdown()
   if (shutdownPrepared_)
     return;
   shutdownPrepared_ = true;
+  // #304: nothing calls into the page from here on, an update's late progress report included.
+  gate_.close();
+  held_.clear();
+  heldTimer_.stop();
   timer_.stop();
   stateTimer_.stop();
   healthTimer_.stop();
@@ -227,6 +275,11 @@ void SignalDock::navigationChanged(const QString &url)
 {
   if (shutdownPrepared_)
     return;
+  // #304: a new load (reload, redirect, sign-in): no calls into the page until it reports a title.
+  // Answers held for the old page are dropped; the new page is not waiting for them.
+  gate_.loading();
+  held_.clear();
+  heldTimer_.stop();
   const QUrl actual(url);
   const QUrl expected(origin_);
   trustedPage_ = actual.scheme() == expected.scheme() && actual.host() == expected.host() &&
@@ -263,9 +316,18 @@ static constexpr int maxCommandBytes = 32768;
 
 void SignalDock::titleChanged(const QString &title)
 {
+  if (shutdownPrepared_)
+    return;
+  // #304: any title means the page's document exists again after a load.
+  if (dropped_) {
+    blog(LOG_INFO, "[roadie-signal] dock page ready; %llu calls skipped while it was not",
+         static_cast<unsigned long long>(dropped_));
+    dropped_ = 0;
+  }
+  gate_.titleSeen();
   // Only the trusted /dock page may command OBS, and only with an exact prefix.
   // Any other title (the page's own name, a redirect's) is ignored.
-  if (!browser_ || !trustedPage_ || shutdownPrepared_)
+  if (!browser_ || !trustedPage_)
     return;
   if (title.startsWith(partPrefix)) {
     commandPart(title.mid(partPrefix.size()));
@@ -311,7 +373,8 @@ void SignalDock::commandPart(const QString &body)
       return;
     }
   }
-  dispatch("roadie:obs-command-part", "roadieObsCommand", QJsonObject{{"version", 1}, {"id", id}, {"index", index}});
+  dispatch("roadie:obs-command-part", "roadieObsCommand", QJsonObject{{"version", 1}, {"id", id}, {"index", index}},
+           Delivery::Hold);
   if (parts_.size() != partsCount_)
     return;
   const QByteArray json = parts_.join(QString()).toUtf8();
@@ -358,7 +421,7 @@ void SignalDock::runCommand(const QJsonObject &command)
     QPointer<SignalDock> self(this);
     const QString error = startCoreUpdate(command.value("target").toString(), [self](const QJsonObject &detail) {
       if (self)
-        self->dispatch("roadie:obs-update", "roadieObsUpdate", detail);
+        self->dispatch("roadie:obs-update", "roadieObsUpdate", detail, Delivery::Hold);
     });
     result["ok"] = error.isEmpty();
     if (!error.isEmpty())
@@ -388,7 +451,7 @@ void SignalDock::runCommand(const QJsonObject &command)
     if (outcome.value("ok").toBool())
       blog(LOG_INFO, "[roadie-signal] Roadie ran %s", action.toUtf8().constData());
   }
-  dispatch("roadie:obs-command-result", "roadieObsCommand", result);
+  dispatch("roadie:obs-command-result", "roadieObsCommand", result, Delivery::Hold);
 }
 
 void SignalDock::publish()
@@ -405,9 +468,7 @@ void SignalDock::publish()
       "(()=>{if(window.top!==window||location.origin!==" + originJson +
       "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsAudio!=='1')return;"
       "window.dispatchEvent(new CustomEvent('roadie:obs-audio',{detail:" + payload + "}));})()";
-  if (!roadieScriptsSafe())
-    return;
-  browser_->executeJavaScript(script.toStdString());
+  runScript(script, Delivery::Drop);
 }
 
 void SignalDock::publishState()
@@ -507,8 +568,10 @@ void SignalDock::publishCrashReports()
   dispatch("roadie:obs-crash", "roadieObsCrash", frame);
 }
 
-void SignalDock::dispatch(const char *event, const char *marker, const QJsonObject &detail)
+void SignalDock::dispatch(const char *event, const char *marker, const QJsonObject &detail, Delivery delivery)
 {
+  if (!browser_)
+    return;
   // Every script re-checks the live frame's origin, exact /dock path and the
   // marker the signed-in provider sets; nothing reaches any other page.
   const QByteArray originJson = QJsonDocument(QJsonArray{origin_}).toJson(QJsonDocument::Compact);
@@ -517,7 +580,5 @@ void SignalDock::dispatch(const char *event, const char *marker, const QJsonObje
                             "[0]||location.pathname!=='/dock'||document.documentElement.dataset." + marker +
                             "!=='1')return;window.dispatchEvent(new CustomEvent('" + event + "',{detail:" + payload +
                             "}));})()";
-  if (!roadieScriptsSafe())
-    return;
-  browser_->executeJavaScript(script.toStdString());
+  runScript(script, delivery);
 }
