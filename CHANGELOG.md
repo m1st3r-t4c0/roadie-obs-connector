@@ -16,7 +16,8 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
 - **Fixed: OBS could crash on Windows while the dock page reloaded or a dialog was open** (Roadie
   #304). The connector now waits until the dock page has loaded again, any dialog has closed, and
   never calls into a page that is closing. Audio and status updates in that moment are skipped;
-  command results wait and go once the page is ready.
+  command results wait and go once the page is ready. This also covers the dock's first page, while
+  OBS is still opening it.
 
 ## 1.1.1 — the Update button works
 

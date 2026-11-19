@@ -13,6 +13,7 @@
 #include <util/platform.h>
 #include <QJsonDocument>
 #include <QApplication>
+#include <QEvent>
 #include <QThread>
 #include <QJsonArray>
 #include <QUrl>
@@ -95,6 +96,11 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
     return;
   }
   layout->addWidget(browser_);
+  // #304, hardened: obs-browser creates the CEF browser when the widget is first shown, and its main
+  // frame can be missing until that first page commits. The gate starts shut, as for any load, and
+  // shuts again on the first show if no page has committed by then (a dock hidden at start).
+  gate_.loading();
+  browser_->installEventFilter(this);
   // String-based Qt connection avoids linking to obs-browser's private metaobject
   // symbols. The SDK's actual QCefWidget type supplies the virtual browser methods.
   QObject::connect(browser_, SIGNAL(urlChanged(QString)), this, SLOT(navigationChanged(QString)));
@@ -145,11 +151,18 @@ bool SignalDock::scriptsSafe() const
   return browser_ && !shutdownPrepared_ && gate_.open() && roadieScriptsSafe();
 }
 
-void SignalDock::runScript(const QByteArray &script, Delivery delivery)
+bool SignalDock::eventFilter(QObject *watched, QEvent *event)
+{
+  if (watched == browser_ && event->type() == QEvent::Show && !pageSeen_ && !shutdownPrepared_)
+    gate_.loading();
+  return QWidget::eventFilter(watched, event);
+}
+
+bool SignalDock::runScript(const QByteArray &script, Delivery delivery)
 {
   if (scriptsSafe()) {
     browser_->executeJavaScript(script.toStdString());
-    return;
+    return true;
   }
   // #304: a timer's frame is dropped; its next tick sends a fresh one. An answer the page waits
   // for is held until the page is ready, unless the page loads anew (it no longer waits) or closes.
@@ -158,9 +171,10 @@ void SignalDock::runScript(const QByteArray &script, Delivery delivery)
       held_.removeFirst();
     held_.append(script);
     heldTimer_.start();
-    return;
+    return false;
   }
   ++dropped_;
+  return false;
 }
 
 void SignalDock::deliverHeld()
@@ -278,6 +292,7 @@ void SignalDock::navigationChanged(const QString &url)
   // #304: a new load (reload, redirect, sign-in): no calls into the page until it reports a title.
   // Answers held for the old page are dropped; the new page is not waiting for them.
   gate_.loading();
+  pageSeen_ = true;
   held_.clear();
   heldTimer_.stop();
   const QUrl actual(url);
@@ -556,22 +571,25 @@ void SignalDock::publishCrashReports()
     crashReports_ = recentCrashReports();
     crashReportsRead_ = true;
   }
-  ++crashDeliveries_;
-  if (crashReports_.isEmpty())
+  if (crashReports_.isEmpty()) {
+    ++crashDeliveries_;
     return;
+  }
   const QJsonObject frame{{"version", 1},
                           {"sessionId", sessionId_},
                           {"pluginVersion", connectorVersion()},
                           {"loaderVersion", loaderVersion()},
                           {"obsVersion", QString::fromLatin1(obs_get_version_string())},
                           {"reports", crashReports_}};
-  dispatch("roadie:obs-crash", "roadieObsCrash", frame);
+  // #304: only a delivery that reached the page counts; one skipped while the page loads is retried.
+  if (dispatch("roadie:obs-crash", "roadieObsCrash", frame))
+    ++crashDeliveries_;
 }
 
-void SignalDock::dispatch(const char *event, const char *marker, const QJsonObject &detail, Delivery delivery)
+bool SignalDock::dispatch(const char *event, const char *marker, const QJsonObject &detail, Delivery delivery)
 {
   if (!browser_)
-    return;
+    return false;
   // Every script re-checks the live frame's origin, exact /dock path and the
   // marker the signed-in provider sets; nothing reaches any other page.
   const QByteArray originJson = QJsonDocument(QJsonArray{origin_}).toJson(QJsonDocument::Compact);
@@ -580,5 +598,5 @@ void SignalDock::dispatch(const char *event, const char *marker, const QJsonObje
                             "[0]||location.pathname!=='/dock'||document.documentElement.dataset." + marker +
                             "!=='1')return;window.dispatchEvent(new CustomEvent('" + event + "',{detail:" + payload +
                             "}));})()";
-  runScript(script, delivery);
+  return runScript(script, delivery);
 }

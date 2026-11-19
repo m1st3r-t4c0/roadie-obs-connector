@@ -54,6 +54,7 @@ static void runGate(QApplication &app, QMainWindow &main, QDockWidget *dock, Bro
 {
   auto *run = new GateRun;
   auto *gate = new ScriptGate;
+  gate->loading(); // as SignalDock: shut until the first page reports its title
   QCefWidget *browser = owner->browser;
   // String-based connections, as the plugin makes them: obs-browser exports no metaobject symbols.
   auto *relay = new Relay(&app);

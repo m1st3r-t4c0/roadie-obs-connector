@@ -54,6 +54,9 @@ public:
 signals:
   void pageChanged();
 
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
 private slots:
   void navigationChanged(const QString &url);
   void titleChanged(const QString &title);
@@ -64,14 +67,15 @@ private:
   enum class Delivery { Drop, Hold };
   static constexpr int maxHeld = 32;
   bool scriptsSafe() const;
-  void runScript(const QByteArray &script, Delivery delivery);
+  // True when the script went into the page now.
+  bool runScript(const QByteArray &script, Delivery delivery);
   void deliverHeld();
   void publish();
   void commandPart(const QString &body);
   void commandJson(const QByteArray &json, const QString &expectedId = QString());
   void runCommand(const QJsonObject &command);
   void publishCrashReports();
-  void dispatch(const char *event, const char *marker, const QJsonObject &detail,
+  bool dispatch(const char *event, const char *marker, const QJsonObject &detail,
                 Delivery delivery = Delivery::Drop);
   void signInIfSignedOut();
   const QString origin_;
@@ -88,6 +92,8 @@ private:
   QTimer layoutTimer_;
   QTimer heldTimer_;
   ScriptGate gate_;
+  // Set by the first urlChanged: from then on the gate follows the page's own loads.
+  bool pageSeen_ = false;
   QList<QByteArray> held_;
   quint64 dropped_ = 0;
   QByteArray lastLayout_;
