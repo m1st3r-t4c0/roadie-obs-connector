@@ -18,6 +18,9 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
   never calls into a page that is closing. Audio and status updates in that moment are skipped;
   command results wait and go once the page is ready. This also covers the dock's first page, while
   OBS is still opening it.
+- **Fixed: stream health showed no encoder frames for multitrack streams** (Enhanced Broadcasting).
+  Each track's encoder reads its own video, so the connector now adds up the frames of every track.
+  A single-track stream reports the same numbers as before.
 
 ## 1.1.1 — the Update button works
 

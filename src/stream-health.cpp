@@ -1,4 +1,5 @@
 #include "stream-health.hpp"
+#include "encoder-frames.hpp"
 #include <obs.h>
 #include <obs-frontend-api.h>
 #include <util/platform.h>
@@ -21,14 +22,23 @@ QJsonObject sampleStreamHealth()
   const float congestion = obs_output_get_congestion(output);
   sample["congestion"] = congestion >= 0.0f && congestion <= 1.0f ? static_cast<double>(congestion) : 0.0;
   sample["reconnecting"] = obs_output_reconnecting(output);
+  // Encoding lag: frames the encoders skipped (encoder overloaded), read from the video each of the
+  // stream's encoders takes its frames from. L10: with multitrack, that is not the main mix.
+  video_t *videos[MAX_OUTPUT_VIDEO_ENCODERS] = {};
+  for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; ++i) {
+    obs_encoder_t *encoder = obs_output_get_video_encoder2(output, i);
+    videos[i] = encoder ? obs_encoder_video(encoder) : nullptr;
+  }
   obs_output_release(output);
+  const EncoderFrames encoder =
+      sumEncoderFrames<video_t *>(obs_get_video(), videos, MAX_OUTPUT_VIDEO_ENCODERS, [](video_t *video) {
+        return EncoderFrames{video_output_get_total_frames(video), video_output_get_skipped_frames(video)};
+      });
 
   // Rendering lag: frames OBS could not compose in time (GPU-bound).
   sample["renderFrames"] = static_cast<double>(obs_get_total_frames());
   sample["laggedFrames"] = static_cast<double>(obs_get_lagged_frames());
-  // Encoding lag: frames the encoder skipped (encoder overloaded).
-  video_t *video = obs_get_video();
-  sample["encodedFrames"] = video ? static_cast<double>(video_output_get_total_frames(video)) : 0.0;
-  sample["skippedFrames"] = video ? static_cast<double>(video_output_get_skipped_frames(video)) : 0.0;
+  sample["encodedFrames"] = static_cast<double>(encoder.encoded);
+  sample["skippedFrames"] = static_cast<double>(encoder.skipped);
   return sample;
 }
