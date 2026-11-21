@@ -143,7 +143,7 @@ seconds without one. A server not chosen under **Accept OBS changes from** is an
 | 0.3.0 | `set-text` | `source`, `text`. Only a GDI+ or FreeType text source, and not one set to read from a file. |
 | 0.3.0 | `set-mute` | `input`, `muted` |
 | 0.3.0 | `set-filter` | `source`, `filter`, `enabled` |
-| 1.0.0 | `take-screenshot` | `source`, `format` (`png` or `jpg`), `width` (16–1920) |
+| 1.0.0 | `take-screenshot` | `source`, `format` (`png` or `jpg`), `width` (16–1920). |
 | 1.0.0 | `update-plugin` | `target` from 1.1.1 (listed as `update-core`). 1.0.0 and 1.1.0 read `version`, the same key as the message format, so they drop every update-plugin; they are updated by hand. |
 | 1.0.0 | `revert-plugin` | |
 | 1.1.0 | `get-layout` | `scene` (optional). No scene reads the one on air; any scene in OBS's list can be named, on air or not. |
@@ -152,9 +152,8 @@ seconds without one. A server not chosen under **Accept OBS changes from** is an
 The 0.3.0 commands **read the change back before answering**, so `"ok": true` means OBS holds the
 new value. A source in a group inside the scene is found too (`obs_scene_find_source_recursive`).
 
-`take-screenshot` runs **only in an OBS that is streaming**: every open dock is sent the command, and
-an OBS that is not live answers `not-live`, so a streamer with OBS on two PCs gets the picture from
-the one viewers are watching. The source or scene is rendered into its own texture at `width`, aspect
+`take-screenshot` runs in any OBS with the plugin connected to Roadie, streaming or not (from 1.1.2;
+t4c0, 2026-11-21). Before 1.1.2 an OBS that was not streaming answered `not-live`. The source or scene is rendered into its own texture at `width`, aspect
 kept, the way obs-websocket's `GetSourceScreenshot` does it; the program and preview are untouched.
 The answer carries `image` as a `data:image/png;base64,…` or `image/jpeg` URL, which the page sends
 to Roadie with the step's one-use ticket.
