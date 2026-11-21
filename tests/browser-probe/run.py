@@ -4,6 +4,7 @@ parser = argparse.ArgumentParser(description='Isolated OBS Browser lifecycle and
 parser.add_argument('--host-root', type=pathlib.Path, default=root/'build/compatibility/32.0.4/obs-host')
 parser.add_argument('--expect-parent-crash', action='store_true')
 parser.add_argument('--skip-gate', action='store_true', help='skip the #304 script-gate case')
+parser.add_argument('--skip-hidden', action='store_true', help='skip the closed-dock case')
 args = parser.parse_args()
 host = args.host_root.resolve()
 build = root / 'build/browser-probe-verified'
@@ -52,6 +53,35 @@ for mode in ['preclose', 'parent-delete']:
                 'log': str(log)}
         result.append(item)
         print(json.dumps(item), flush=True)
+# A dock closed when OBS starts. "hidden-control" is the old plugin: no show, so obs-browser never
+# makes the browser and the page never loads. "hidden" sends HiddenStart: the page must load and run
+# a script while the dock stays closed, and opening the dock afterwards must not load it again.
+hidden = {}
+for mode in ([] if args.skip_hidden else ['hidden', 'hidden-control']):
+    profile = build / ('profile-' + mode + '-' + str(time.time_ns()))
+    seen.clear()
+    process = subprocess.Popen([str(exe), str(host), str(profile),
+        f'http://127.0.0.1:{server.server_port}/hidden', mode], env=env,
+        cwd=host/'bin/64bit', stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        startupinfo=startup)
+    try:
+        output, _ = process.communicate(timeout=30)
+    except subprocess.TimeoutExpired:
+        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], capture_output=True)
+        output, _ = process.communicate()
+    text = output.decode('utf-8', errors='replace')
+    log = build / f'{mode}.log'
+    log.write_text(text, encoding='utf-8')
+    states = {}
+    for line in text.splitlines():
+        if line.startswith('PROBE hidden closed') or line.startswith('PROBE hidden opened'):
+            words = line.split()
+            states[words[2]] = {k: int(v) for k, v in (w.split('=') for w in words[3:])}
+    item = {'mode': mode, 'exitCode': process.returncode, 'requests': [r['path'] for r in seen],
+            'states': states, 'log': str(log)}
+    hidden[mode] = item
+    result.append(item)
+    print(json.dumps(item), flush=True)
 # #304: executeJavaScript every 2 ms across a page reload, a URL change, a nested dialog loop and
 # closeBrowser. "gate" goes through the plugin's ScriptGate and must exit normally and drop the
 # calls while the page has none; "ungated" is the old Windows path, recorded for comparison only
@@ -93,6 +123,18 @@ assert any(r['path'] == '/probe' and r['persistent'] and not r['session']
 if args.expect_parent_crash:
     assert all(r['exitCode'] == 0xC0000005 for r in result if r['mode'] == 'parent-delete'), 'Old order did not reproduce the expected access violation'
 print('PASS: pre-close completed and only the persistent cookie survived restart')
+if 'hidden' in hidden:
+    h = hidden['hidden']
+    c = hidden['hidden-control']
+    assert h['exitCode'] == 0, f"Closed-dock run exited {h['exitCode']:#x}; inspect {h['log']}"
+    assert h['states'].get('closed', {}).get('visible') == 0, 'The dock did not stay closed'
+    assert h['states']['closed']['titles'] >= 1, 'The page did not load while the dock was closed'
+    assert '/hidden-script' in h['requests'], 'A script did not run in the page while the dock was closed'
+    assert h['requests'].count('/hidden') == 1, 'Opening the dock loaded the page a second time'
+    assert h['states'].get('opened', {}).get('visible') == 1, 'The dock did not open'
+    assert c['states'].get('closed', {}).get('titles') == 0 and '/hidden-script' not in c['requests'], \
+        'Control: the old plugin loaded a page in a closed dock, so the case no longer shows the bug'
+    print('PASS: a closed dock loads its page and runs scripts in it; the old plugin did not')
 if 'gate' in gate:
     g = gate['gate']
     p = g['phases']

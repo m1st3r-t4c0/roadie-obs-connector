@@ -1,5 +1,6 @@
 #include "signal-dock.hpp"
 #include "script-gate.hpp"
+#include "hidden-start.hpp"
 #include "core-update.hpp"
 #include "crash-reports.hpp"
 #include "obs-commands.hpp"
@@ -142,6 +143,10 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
   healthTimer_.start();
   layoutTimer_.start();
   cookieFlushTimer_.start();
+  // A page nobody can see signs itself in: one behind the page in front, or in a closed dock.
+  signInTimer_.start();
+  // A dock closed when OBS starts would never load its page, and Roadie would get no OBS data.
+  QTimer::singleShot(HiddenStart::delayMs, this, [this] { startIfHidden(); });
 }
 
 bool SignalDock::initialized() const { return !browser_.isNull(); }
@@ -153,9 +158,21 @@ bool SignalDock::scriptsSafe() const
 
 bool SignalDock::eventFilter(QObject *watched, QEvent *event)
 {
-  if (watched == browser_ && event->type() == QEvent::Show && !pageSeen_ && !shutdownPrepared_)
-    gate_.loading();
+  if (watched == browser_ && event->type() == QEvent::Show) {
+    started_ = true;
+    if (!pageSeen_ && !shutdownPrepared_)
+      gate_.loading();
+  }
   return QWidget::eventFilter(watched, event);
+}
+
+void SignalDock::startIfHidden()
+{
+  if (!browser_ || started_ || shutdownPrepared_)
+    return;
+  blog(LOG_INFO, "[roadie-signal] the Roadie Signal dock is closed; starting %s/dock out of sight",
+       origin_.toUtf8().constData());
+  HiddenStart::start(browser_);
 }
 
 bool SignalDock::runScript(const QByteArray &script, Delivery delivery)
@@ -206,15 +223,13 @@ void SignalDock::setRoles(bool sends, bool obeys)
 void SignalDock::setBackground(bool background)
 {
   background_ = background;
-  if (background_ && !shutdownPrepared_)
-    signInTimer_.start();
-  else
-    signInTimer_.stop();
 }
 
 void SignalDock::signInIfSignedOut()
 {
-  if (!browser_ || !trustedPage_ || !background_ || shutdownPrepared_)
+  // Out of sight: behind the page in front, or in a dock that is closed. A page the streamer can
+  // see keeps Roadie's sign-in screen for them.
+  if (!browser_ || !trustedPage_ || shutdownPrepared_ || (!background_ && isVisible()))
     return;
   // At most one attempt a minute, so a sign-in that keeps failing never loops.
   if (lastSignIn_.isValid() && lastSignIn_.elapsed() < 60000)

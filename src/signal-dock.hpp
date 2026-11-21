@@ -94,6 +94,10 @@ private:
   ScriptGate gate_;
   // Set by the first urlChanged: from then on the gate follows the page's own loads.
   bool pageSeen_ = false;
+  // The browser has had a show event, real or HiddenStart's, so obs-browser has created it.
+  bool started_ = false;
+  // A dock closed since OBS started still gets its page (hidden-start.hpp).
+  void startIfHidden();
   QList<QByteArray> held_;
   quint64 dropped_ = 0;
   QByteArray lastLayout_;

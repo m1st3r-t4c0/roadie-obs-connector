@@ -23,6 +23,12 @@ close. Mode `ungated` is the old Windows path, run for comparison only: the
 instant CEF has no main frame is a race, and the isolated probe has not hit it,
 so it is not asserted to crash. `--skip-gate` leaves the case out.
 
+The closed-dock case starts with the dock hidden, as OBS keeps a dock unticked under Docks.
+obs-browser creates a page's browser only on its first show, so mode `hidden-control` (no show)
+must load nothing while the dock is closed. Mode `hidden` sends the plugin's own `HiddenStart`
+(`src/hidden-start.hpp`): the page must load and run a script while the dock stays closed, and
+opening the dock afterwards must not load it a second time. `--skip-hidden` leaves the case out.
+
 With the repository's pinned SDK and verified OBS fixtures already prepared:
 
 ```powershell

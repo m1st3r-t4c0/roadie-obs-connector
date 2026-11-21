@@ -21,6 +21,12 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
 - **Fixed: stream health showed no encoder frames for multitrack streams** (Enhanced Broadcasting).
   Each track's encoder reads its own video, so the connector now adds up the frames of every track.
   A single-track stream reports the same numbers as before.
+- **Fixed: Roadie got no OBS data while the Roadie Signal dock was closed.** OBS's browser starts a
+  dock's page only the first time the dock is shown, so a dock that was closed when OBS started
+  (unticked under **Docks**, or never placed) sent no scene, stream, audio or health data until it
+  was opened. The connector now starts the page out of sight two seconds after OBS loads, and Roadie
+  sees OBS whether or not the dock is open. A closed dock also signs itself in, like the page behind
+  it. The OBS log says `the Roadie Signal dock is closed; starting … out of sight` when this happens.
 
 ## 1.1.1 — the Update button works
 

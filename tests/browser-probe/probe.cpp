@@ -1,5 +1,6 @@
 #include <browser-panel.hpp>
 #include "script-gate.hpp"
+#include "hidden-start.hpp"
 #include <QApplication>
 #include <QMainWindow>
 #include <QDialog>
@@ -120,6 +121,48 @@ static void runGate(QApplication &app, QMainWindow &main, QDockWidget *dock, Bro
   });
 }
 
+// A Roadie Signal dock closed when OBS starts. obs-browser creates a page's browser only on its
+// first show, so "hidden-control" (the old plugin) must never load the page; "hidden" sends the
+// plugin's own HiddenStart (src/hidden-start.hpp) and must load it and run scripts in it while the
+// dock stays closed. Then the dock opens, as the streamer would, and the page must not load again.
+static void runHidden(QApplication &app, QDockWidget *dock, BrowserOwner *owner, bool start,
+                      std::unique_ptr<QCefCookieManager> &cookies, std::unique_ptr<QCef> &cef)
+{
+  QCefWidget *browser = owner->browser;
+  auto *relay = new Relay(&app);
+  auto *titles = new int(0);
+  relay->onUrl = [] {};
+  relay->onTitle = [titles] { ++*titles; };
+  QObject::connect(browser, SIGNAL(urlChanged(QString)), relay, SLOT(url(QString)));
+  QObject::connect(browser, SIGNAL(titleChanged(QString)), relay, SLOT(title(QString)));
+  if (start)
+    QTimer::singleShot(500, &app, [browser] {
+      std::puts("PROBE hidden start");
+      HiddenStart::start(browser);
+    });
+  QTimer::singleShot(4000, &app, [browser, dock, titles] {
+    std::printf("PROBE hidden closed visible=%d titles=%d\n", dock->isVisible() ? 1 : 0, *titles);
+    std::fflush(stdout);
+    // The plugin's frames arrive this way; the request proves the hidden page ran the script.
+    browser->executeJavaScript("fetch('/hidden-script');");
+  });
+  QTimer::singleShot(6000, &app, [dock] {
+    std::puts("PROBE hidden open dock");
+    dock->show();
+  });
+  QTimer::singleShot(9000, &app, [&app, browser, dock, titles, &cookies, &cef] {
+    std::printf("PROBE hidden opened visible=%d titles=%d\n", dock->isVisible() ? 1 : 0, *titles);
+    std::fflush(stdout);
+    browser->closeBrowser();
+    delete dock;
+    std::puts("PROBE dock destroyed");
+    cookies->FlushStore();
+    cookies.reset();
+    cef.reset();
+    QTimer::singleShot(500, &app, &QApplication::quit);
+  });
+}
+
 int main(int argc, char **argv)
 {
   if (argc != 5) return 2;
@@ -153,8 +196,13 @@ int main(int argc, char **argv)
   dock->setWidget(owner);
   main.addDockWidget(Qt::RightDockWidgetArea, dock);
   main.resize(400, 300);
+  const bool hidden = mode == "hidden" || mode == "hidden-control";
+  if (hidden)
+    dock->hide(); // a dock unticked under Docks: OBS keeps the widget, hidden
   main.show();
-  if (mode == "gate" || mode == "ungated") {
+  if (hidden) {
+    runHidden(app, dock, owner, mode == "hidden", cookies, cef);
+  } else if (mode == "gate" || mode == "ungated") {
     runGate(app, main, dock, owner, mode == "gate", cookies, cef);
   } else {
     QTimer::singleShot(4000, &app, [&] { std::printf("PROBE flush %d\n", cookies->FlushStore()); });
