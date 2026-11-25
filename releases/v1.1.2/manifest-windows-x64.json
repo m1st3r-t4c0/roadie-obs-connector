@@ -1,0 +1,8 @@
+{
+  "version": "1.1.2",
+  "platform": "windows-x64",
+  "file": "roadie-signal-core-windows-x64.dll",
+  "sha256": "d7b9ccb26ce10cbe3ce8f8bb114da7d6d75121dbec238320a4528cbb8348319b",
+  "bytes": 245760,
+  "minObs": "30.0.0"
+}
