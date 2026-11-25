@@ -28,7 +28,7 @@ Windows release packages (DLL, ZIP, checksums, build report) are checked in unde
   sees OBS whether or not the dock is open. A closed dock also signs itself in, like the page behind
   it. The OBS log says `the Roadie Signal dock is closed; starting … out of sight` when this happens.
 - **New: Take an OBS screenshot works while you are not live.** Before, a screenshot step failed with
-  "OBS is not live" whenever OBS was not streaming, so a test run never took one.
+  "OBS is not live" whenever OBS was not streaming, so a run while offline never took one.
 
 ## 1.1.1 — the Update button works
 
