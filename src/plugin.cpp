@@ -2,6 +2,7 @@
 #include "scene-events.hpp"
 #include "obs-layout.hpp"
 #include "versions.hpp"
+#include "crash-reports.hpp"
 #include <browser-panel.hpp>
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -690,6 +691,7 @@ void stopDocks()
 void frontendEvent(enum obs_frontend_event event, void *)
 {
   if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+    recordRoadieRun();
     addMenuAction();
     startDocks();
     warnAboutOtherCopies();

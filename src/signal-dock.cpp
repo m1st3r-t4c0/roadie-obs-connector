@@ -110,7 +110,10 @@ SignalDock::SignalDock(QCef *cef, const QString &origin, QCefCookieManager *cook
   QObject::connect(browser_, SIGNAL(titleChanged(QString)), this, SLOT(titleChanged(QString)));
   signInTimer_.setInterval(5000);
   connect(&signInTimer_, &QTimer::timeout, this, [this] { signInIfSignedOut(); });
-  timer_.setInterval(100);
+  // #412: the mic level four times a second, not ten. Every call into the page is a chance to meet
+  // CEF without a main frame, and this timer made most of them. AudioTap keeps the loudest reading
+  // between two sends, so no peak is lost; the dock page counts a reading fresh for a second.
+  timer_.setInterval(250);
   connect(&timer_, &QTimer::timeout, this, [this] { publish(); });
   stateTimer_.setInterval(5000);
   connect(&stateTimer_, &QTimer::timeout, this, [this] { publishState(); });
@@ -237,10 +240,12 @@ void SignalDock::signInIfSignedOut()
   // Signed in, the dock page marks the document (roadieObsState); signed out it shows
   // Roadie's sign-in screen, whose Twitch link is followed here. Only on the trusted page.
   const QByteArray originJson = QJsonDocument(QJsonArray{origin_}).toJson(QJsonDocument::Compact);
+  // #412: the title goes first, so the plugin stops calling into the page before it navigates.
   const QByteArray script =
       "(()=>{if(window.top!==window||location.origin!==" + originJson +
       "[0]||location.pathname!=='/dock'||document.documentElement.dataset.roadieObsState==='1')return;"
-      "const a=document.querySelector('a[href^=\"/auth/twitch/login\"]');if(a)location.href=a.href;})()";
+      "const a=document.querySelector('a[href^=\"/auth/twitch/login\"]');if(a){document.title='" +
+      QByteArray(leavingTitle) + "';location.href=a.href;}})()";
   lastSignIn_.start();
   runScript(script, Delivery::Drop);
 }
@@ -348,13 +353,18 @@ void SignalDock::titleChanged(const QString &title)
 {
   if (shutdownPrepared_)
     return;
+  // #412: the page is about to navigate away. No calls into it until the next page is there.
+  if (title == QLatin1String(leavingTitle)) {
+    gate_.leaving();
+    return;
+  }
   // #304: any title means the page's document exists again after a load.
   if (dropped_) {
     blog(LOG_INFO, "[roadie-signal] dock page ready; %llu calls skipped while it was not",
          static_cast<unsigned long long>(dropped_));
     dropped_ = 0;
   }
-  gate_.titleSeen();
+  gate_.titleSeen(title.startsWith(commandPrefix) || title.startsWith(partPrefix));
   // Only the trusted /dock page may command OBS, and only with an exact prefix.
   // Any other title (the page's own name, a redirect's) is ignored.
   if (!browser_ || !trustedPage_)

@@ -32,7 +32,9 @@ sample age. `unselected` has a null source; `muted` requires a source. Every fra
 sequence within one plugin session. The receiver expires a missing bridge after 2000 ms and expires
 sample freshness independently; duplicate/invalid data cannot refresh it.
 
-A native OBS meter supplies peak/RMS every 100 ms. The callback updates a snapshot without UI,
+A native OBS meter supplies peak/RMS; the plugin sends a frame every 250 ms (every 100 ms before
+1.1.3), carrying the loudest peak and RMS measured since the last frame, so no peak is lost to the
+slower rate (#412). The callback updates a snapshot without UI,
 JavaScript, allocation or network work. No raw audio is captured or uploaded. Navigation away
 detaches the tap; navigating back re-resolves the saved source. Source rename preserves the
 selection; removal produces `unavailable`. Source names and readings do not enter cloud connector
@@ -110,14 +112,30 @@ folder beside this plugin's config root (portable installs included).
 }
 ```
 
-Each report is capped at 64 KB. `C:\Users\<name>` paths are replaced with `C:\Users\<user>` before
-hashing, so the hash is of what Roadie receives. The page sends them to Roadie only while its
+Each report is at most 64 KB. Until 1.1.3 that was the file's first 64 KB, which on an OBS with many
+threads left out the module list and sometimes the crashed thread. From 1.1.3 a longer report keeps
+its header, the crashed thread and `Loaded modules:` first, then as many other threads as fit, and
+ends with `[Roadie: N other threads left out to fit 64 KB]` (`truncated: true`). A line after the
+first names the Roadie connector that was running when OBS crashed (`Roadie connector at crash:
+1.1.2 (OBS plugin 1.0.1)`), read from `runs.json` in the plugin's config folder (one entry per OBS
+start); `connectorAtCrash` gives the same number. `sha256` stays the hash of the redacted first
+64 KB, so a report sent before 1.1.3 is still known. `C:\Users\<name>` paths are replaced with
+`C:\Users\<user>` before hashing. The page sends them to Roadie only while its
 crash-report switch is on; Roadie dedupes by `sha256`.
 
 ## Commands
 
 `browser-panel.hpp` gives the plugin no JavaScript-to-native call, only the `titleChanged` and
-`urlChanged` signals, so the trusted `/dock` page writes a command into `document.title`:
+`urlChanged` signals, so the trusted `/dock` page writes a command into `document.title`.
+
+**Leaving (1.1.3, #412).** Just before the page navigates away (`beforeunload`, `pagehide`), it writes
+the title `roadie-obs-leaving` and writes no other title after it. From then until the next page
+commits, CEF can be without a main frame, and a call into the page then crashes OBS. The plugin
+makes no call until the next page reports its own title (a command title from the old page does not
+count), or 15 seconds pass. The plugin's own sign-in step writes the same title before it follows
+the Twitch link.
+
+A command:
 
 ```text
 roadie-obs-command:{"version":1,"id":"<1-64 of A-Z a-z 0-9 ->","action":"set-scene","scene":"BRB"}

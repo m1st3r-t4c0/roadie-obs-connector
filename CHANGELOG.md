@@ -3,6 +3,23 @@
 Windows release packages (DLL, ZIP, checksums, build report) are checked in under
 [`releases/`](releases). Protocol details are in [docs/bridge-protocol.md](docs/bridge-protocol.md).
 
+## 1.1.3 — fewer crashes from the Roadie Signal dock
+
+- **Fixed: OBS could still crash on Windows while the dock page moved to another page** (Roadie
+  #412, after #304). When the dock page signs in or reloads, OBS's browser can be without the page
+  for a moment, and a call into it then crashes OBS. The dock page now says when it is about to
+  leave, and the connector makes no call until the next page is there, however long the sign-in
+  takes. Until now it waited at most three seconds.
+- **The mic level goes to the dock page four times a second instead of ten**, with the loudest
+  reading since the last one, so Signal activity misses no peak. Fewer calls into the page means
+  fewer chances to meet that moment.
+- **Crash reports keep what matters when they are long.** A report from an OBS with many threads
+  used to be cut at 64 KB, and the list of loaded plugins never reached Roadie. Now the crashed
+  thread and the loaded plugins come first, and other threads fill the rest.
+- **Crash reports say which Roadie connector was running** when OBS crashed. Before, Roadie only
+  knew the version that sent the report, which after an update is a newer one.
+- **Update from the dock.** This release changes only the connector, so the Update button installs it.
+
 ## 1.1.2 — loads on OBS 32.2
 
 - **Fixed: the dock never appeared on OBS 32.2 and newer.** OBS 32.2.0 changed how Windows looks

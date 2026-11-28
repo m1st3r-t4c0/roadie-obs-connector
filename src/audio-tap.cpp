@@ -20,6 +20,7 @@ void AudioTap::detach()
   }
   std::lock_guard<std::mutex> lock(mutex_);
   sampled_ = false;
+  collecting_ = false;
   peak_ = rms_ = 0;
 }
 
@@ -83,8 +84,15 @@ void AudioTap::capture(void *param, const float *magnitude, const float *peaks, 
   std::unique_lock<std::mutex> lock(tap.mutex_, std::try_to_lock);
   if (!lock.owns_lock())
     return; // drop a measurement rather than block OBS's audio thread
-  tap.peak_ = peak;
-  tap.rms_ = rms;
+  // The loudest measurement since the last reading, so a slower reader misses no peak.
+  if (tap.collecting_) {
+    tap.peak_ = std::max(tap.peak_, peak);
+    tap.rms_ = std::max(tap.rms_, rms);
+  } else {
+    tap.peak_ = peak;
+    tap.rms_ = rms;
+    tap.collecting_ = true;
+  }
   tap.sampledAt_ = std::chrono::steady_clock::now();
   tap.sampled_ = true;
 }
@@ -124,5 +132,7 @@ QJsonObject AudioTap::reading()
   result["peak"] = peak_;
   result["rms"] = rms_;
   result["sampleAgeMs"] = static_cast<double>(age);
+  // The next measurement starts a new loudest-since; until it comes, this one is read again.
+  collecting_ = false;
   return result;
 }

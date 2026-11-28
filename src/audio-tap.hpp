@@ -24,5 +24,7 @@ private:
   float peak_ = 0;
   float rms_ = 0;
   bool sampled_ = false;
+  // A measurement arrived since the last reading(): the next one keeps the louder of the two.
+  bool collecting_ = false;
   std::chrono::steady_clock::time_point sampledAt_;
 };

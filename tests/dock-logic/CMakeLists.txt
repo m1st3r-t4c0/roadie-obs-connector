@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.28)
+project(dock_logic_probe LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+find_package(Qt6 6.5.3 REQUIRED COMPONENTS Widgets)
+add_executable(dock-logic-probe probe.cpp)
+target_link_libraries(dock-logic-probe PRIVATE Qt6::Widgets)
